@@ -1,0 +1,43 @@
+# Gradle / Build
+.gradle/
+.gradle-*/
+.gradle-cache*/
+.gradle-home*/
+gradle-cache/
+gradle-home/
+android-home/
+build/
+app/build/
+app/build_*/
+app/build_old*/
+build_trash_*/
+build_old*/
+
+# Android
+local.properties
+*.keystore
+*.jks
+captures/
+.externalNativeBuild/
+.cxx/
+*.ap_
+
+# APK / Outputs (不进仓，需发布时 git add -f)
+*.apk
+*.aab
+output/
+
+# IntelliJ / Android Studio
+.idea/
+*.iml
+*.ipr
+*.iws
+.DS_Store
+*.hprof
+
+# Temp
+Temp/
+tetris-build/
+
+# OS
+Thumbs.db
