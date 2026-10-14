@@ -42,6 +42,8 @@ class TetrisEngine(
         private set
     var clearSeq: Long = 0L
         private set
+    var lockSeq: Long = 0L
+        private set
     // 消除行快照：用于爆破特效逐格飞散
     var clearedSnapshot: List<List<Int>> = emptyList()
         private set
@@ -188,6 +190,7 @@ class TetrisEngine(
         }
         current = null
         moveCount++
+        lockSeq++
         clearLines()
         if (gameState == GameState.PLAYING) {
             spawnPiece()

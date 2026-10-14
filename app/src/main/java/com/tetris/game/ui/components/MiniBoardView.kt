@@ -11,7 +11,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import com.tetris.game.engine.TetrominoType
-import com.tetris.game.ui.theme.*
+import com.tetris.game.ui.theme.LocalAppTheme
 import kotlin.math.min
 
 @Composable
@@ -20,20 +20,18 @@ fun MiniBoardView(
     label: String,
     modifier: Modifier = Modifier
 ) {
+    val theme = LocalAppTheme.current
     if (piece == null) {
         Canvas(modifier = modifier.fillMaxSize()) {
-            drawRoundRect(
-                color = BoardCardBackground,
-                cornerRadius = CornerRadius(10.dp.toPx())
-            )
+            drawRoundRect(color = theme.boardCardBackground, cornerRadius = CornerRadius(10.dp.toPx()))
         }
         return
     }
     val shape = com.tetris.game.engine.SHAPES[piece]!![0]
-    val color = BlockColors[piece.colorIndex % BlockColors.size]
+    val color = theme.blockColors[piece.colorIndex % theme.blockColors.size]
     Canvas(modifier = modifier.fillMaxSize()) {
         drawRoundRect(
-            brush = Brush.linearGradient(listOf(BoardCardBackground, BoardBackground)),
+            brush = Brush.linearGradient(listOf(theme.boardCardBackground, theme.boardBackground)),
             cornerRadius = CornerRadius(10.dp.toPx())
         )
         var minR = 4; var maxR = -1; var minC = 4; var maxC = -1
@@ -43,7 +41,6 @@ fun MiniBoardView(
         }
         val rows = maxR - minR + 1
         val cols = maxC - minC + 1
-        // 极限贴边 0.98 / 无上限
         val cell = min(size.width * 0.98f / cols, size.height * 0.98f / rows)
         val offsetX = (size.width - cols * cell) / 2f
         val offsetY = (size.height - rows * cell) / 2f

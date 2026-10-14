@@ -4,17 +4,53 @@
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
-    <!-- 俄罗斯方块风格：四个方块拼成 T 形 -->
+    <!-- A · 幻彩拼接 · 4 色 T 形 圆角立体 高光+阴影 · 自适应居中 -->
+    <!-- Block 1 cyan #22D3EE -->
     <path
-        android:fillColor="#FF4DD0E1"
-        android:pathData="M30,30 h16 v16 h-16 z" />
+        android:fillColor="#FF22D3EE"
+        android:strokeColor="#0F172A"
+        android:strokeWidth="0.7"
+        android:pathData="M23,30 H37 A4,4 0 0 1 41,34 V48 A4,4 0 0 1 37,52 H23 A4,4 0 0 1 19,48 V34 A4,4 0 0 1 23,30 Z" />
     <path
-        android:fillColor="#FF4DD0E1"
-        android:pathData="M46,30 h16 v16 h-16 z" />
+        android:fillColor="#52FFFFFF"
+        android:pathData="M21.5,32.8 H38.5 V38.2 H21.5 Z" />
     <path
-        android:fillColor="#FF4DD0E1"
-        android:pathData="M62,30 h16 v16 h-16 z" />
+        android:fillColor="#24000000"
+        android:pathData="M19,46.4 H41 V48 A4,4 0 0 1 37,52 H23 A4,4 0 0 1 19,48 Z" />
+    <!-- Block 2 purple #A78BFA -->
     <path
-        android:fillColor="#FF4DD0E1"
-        android:pathData="M46,46 h16 v16 h-16 z" />
+        android:fillColor="#FFA78BFA"
+        android:strokeColor="#0F172A"
+        android:strokeWidth="0.7"
+        android:pathData="M47,30 H61 A4,4 0 0 1 65,34 V48 A4,4 0 0 1 61,52 H47 A4,4 0 0 1 43,48 V34 A4,4 0 0 1 47,30 Z" />
+    <path
+        android:fillColor="#52FFFFFF"
+        android:pathData="M45.5,32.8 H62.5 V38.2 H45.5 Z" />
+    <path
+        android:fillColor="#24000000"
+        android:pathData="M43,46.4 H65 V48 A4,4 0 0 1 61,52 H47 A4,4 0 0 1 43,48 Z" />
+    <!-- Block 3 yellow #FACC15 highlight slightly stronger -->
+    <path
+        android:fillColor="#FFFACC15"
+        android:strokeColor="#0F172A"
+        android:strokeWidth="0.7"
+        android:pathData="M71,30 H85 A4,4 0 0 1 89,34 V48 A4,4 0 0 1 85,52 H71 A4,4 0 0 1 67,48 V34 A4,4 0 0 1 71,30 Z" />
+    <path
+        android:fillColor="#61FFFFFF"
+        android:pathData="M69.5,32.8 H86.5 V38.2 H69.5 Z" />
+    <path
+        android:fillColor="#24000000"
+        android:pathData="M67,46.4 H89 V48 A4,4 0 0 1 85,52 H71 A4,4 0 0 1 67,48 Z" />
+    <!-- Block 4 pink #FB7185 centered under -->
+    <path
+        android:fillColor="#FFFB7185"
+        android:strokeColor="#0F172A"
+        android:strokeWidth="0.7"
+        android:pathData="M47,54 H61 A4,4 0 0 1 65,58 V72 A4,4 0 0 1 61,76 H47 A4,4 0 0 1 43,72 V58 A4,4 0 0 1 47,54 Z" />
+    <path
+        android:fillColor="#52FFFFFF"
+        android:pathData="M45.5,56.8 H62.5 V62.2 H45.5 Z" />
+    <path
+        android:fillColor="#24000000"
+        android:pathData="M43,70.4 H65 V72 A4,4 0 0 1 61,76 H47 A4,4 0 0 1 43,72 Z" />
 </vector>

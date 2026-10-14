@@ -35,6 +35,8 @@ output/
 .DS_Store
 *.hprof
 
+# CDKey 私钥（离线生成器，勿入库）
+tools/cdkey-generator/
 # Temp
 Temp/
 tetris-build/
