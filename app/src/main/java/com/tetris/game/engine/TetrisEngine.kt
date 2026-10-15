@@ -51,14 +51,16 @@ class TetrisEngine(
     private val randomizer = BagRandomizer()
 
     init {
-        // 初始化障碍物
+        // 障碍放在底部。-1 是可被补齐后一起消掉的垃圾格，不能堆在出生点。
+        val startRow = (BOARD_HEIGHT - obstacleRows.size).coerceAtLeast(0)
         obstacleRows.forEachIndexed { rowIdx, rowColors ->
-            if (rowIdx < BOARD_HEIGHT) {
+            val boardRow = startRow + rowIdx
+            if (boardRow < BOARD_HEIGHT) {
                 for (col in rowColors.indices) {
                     if (col < BOARD_WIDTH) {
                         val c = rowColors[col]
-                        if (c == -1) board[rowIdx][col] = -1
-                        else if (c != null) board[rowIdx][col] = c
+                        if (c == -1) board[boardRow][col] = -1
+                        else if (c != null) board[boardRow][col] = c
                     }
                 }
             }
@@ -205,7 +207,8 @@ class TetrisEngine(
             var full = true
             for (c in 0 until BOARD_WIDTH) {
                 val cell = board[r][c]
-                if (cell == null || cell == -1) { full = false; break }
+                // 障碍格（-1）算已占用：玩家补上空洞后，整行连同障碍一起消除
+                if (cell == null) { full = false; break }
             }
             if (full) fullRows.add(r)
         }

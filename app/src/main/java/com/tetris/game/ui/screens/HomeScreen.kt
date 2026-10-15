@@ -4,6 +4,8 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Palette
@@ -37,6 +39,7 @@ fun HomeScreen(
     val theme = LocalAppTheme.current
     val highScore by saveManager.highScore.collectAsState(initial = 0)
     val maxLevel by saveManager.maxLevel.collectAsState(initial = 0)
+    val currentLevel by saveManager.currentLevel.collectAsState(initial = 1)
     val coins by saveManager.coins.collectAsState(initial = 0)
     val themeId by saveManager.themeId.collectAsState(initial = theme.id.id)
     val scope = rememberCoroutineScope()
@@ -78,8 +81,10 @@ fun HomeScreen(
         Column(
             modifier = Modifier
                 .fillMaxSize()
+                .windowInsetsPadding(WindowInsets.systemBars)
+                .verticalScroll(rememberScrollState())
                 .padding(horizontal = 24.dp)
-                .padding(top = 56.dp, bottom = 24.dp),
+                .padding(top = 64.dp, bottom = 16.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center
         ) {
@@ -136,16 +141,25 @@ fun HomeScreen(
                     horizontalArrangement = Arrangement.SpaceEvenly
                 ) {
                     StatItem("最高分", highScore.toString())
-                    StatItem("最高关卡", if (maxLevel > 0) ("第" + maxLevel + "关") else "未通关")
-                    StatItem("金币", coins.toString())
+                    StatItem("已通关", if (maxLevel > 0) ("第" + maxLevel + "关") else "未通关")
+                    StatItem("闯关金币", coins.toString())
                 }
             }
 
             Spacer(modifier = Modifier.height(40.dp))
 
-            MainMenuButton(title = "经典无尽", subtitle = "无体力无限制 · 挑战高分", accentColor = theme.primaryAccent, onClick = onPlayEndless)
+            MainMenuButton(title = "经典无尽", subtitle = "一直玩下去，冲击最高分", accentColor = theme.primaryAccent, onClick = onPlayEndless)
             Spacer(modifier = Modifier.height(16.dp))
-            MainMenuButton(title = "冒险闯关", subtitle = "500+ 主题关卡 · 三星挑战", accentColor = theme.secondaryAccent, onClick = onPlayAdventure)
+            MainMenuButton(
+                title = "冒险闯关",
+                subtitle = when {
+                    maxLevel >= 200 -> "200 关都已解锁，可以回头刷星"
+                    currentLevel <= 1 -> "200 关地图 · 从第 1 关开始"
+                    else -> "200 关地图 · 下一关是第 $currentLevel 关"
+                },
+                accentColor = theme.secondaryAccent,
+                onClick = onPlayAdventure
+            )
 
             Spacer(modifier = Modifier.height(28.dp))
             Text(text = "轻休闲 · 强竞技 · 碎片化游玩", fontSize = 12.sp, color = theme.textSecondary)

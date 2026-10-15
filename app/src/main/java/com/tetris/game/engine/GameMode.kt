@@ -15,7 +15,39 @@ data class LevelConfig(
     val obstacleRows: List<List<Int?>> = emptyList()  // 障碍：null=空, -1=障碍块
 )
 
-/** 内置冒险关卡（V1.0：200 关，这里定义前 30 关 + 程序化生成其余） */
+/**
+ * 冒险星级。
+ * 普通关：按「每次落子平均消行」计，单消是 1 星，带双消到 2 星，大量连消或一次消多行到 3 星。
+ * 步数关：剩下的步数越多星越高，至少留下四分之一步数才是 3 星。
+ */
+fun adventureStars(linesCleared: Int, moveCount: Int, config: LevelConfig): Int {
+    if (config.moveLimit > 0) {
+        val remainRatio = (config.moveLimit - moveCount).coerceAtLeast(0).toFloat() / config.moveLimit.toFloat()
+        return when {
+            remainRatio >= 0.25f -> 3
+            remainRatio >= 0.08f -> 2
+            else -> 1
+        }
+    }
+    val perLock = linesCleared.toFloat() / moveCount.coerceAtLeast(1).toFloat()
+    return when {
+        perLock >= 1.6f -> 3
+        perLock >= 1.15f -> 2
+        else -> 1
+    }
+}
+
+fun adventureStarHint(config: LevelConfig?, compact: Boolean = false): String {
+    val moveLimited = config != null && config.moveLimit > 0
+    return when {
+        moveLimited && compact -> "剩步越多星越高"
+        moveLimited -> "步数剩得越多星越高"
+        compact -> "连消越多星越高"
+        else -> "一次消得越多星越高"
+    }
+}
+
+/** 内置冒险关卡（V1.0：200 关，这里定义前 15 关 + 程序化生成其余） */
 object LevelCatalog {
     fun getLevel(id: Int): LevelConfig {
         // 前 15 关手写定义（教学循序渐进）

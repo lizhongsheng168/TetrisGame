@@ -2,6 +2,8 @@ package com.tetris.game.ui.components
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -60,8 +62,8 @@ fun TutorialOverlay(
                 icon = Icons.Filled.Refresh
             ),
             TutorialStep(
-                title = "加速下落",
-                desc = "长按 加速 让方块快速下落\n松手即停，用于精准落位",
+                title = "下落",
+                desc = "点一下「下落」立刻落到底\n按住则一格格下落，方便对位",
                 icon = Icons.Filled.KeyboardArrowDown
             ),
             TutorialStep(
@@ -75,7 +77,10 @@ fun TutorialOverlay(
     val cur = steps[step.coerceIn(0, total - 1)]
 
     Box(
-        modifier = Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.62f)),
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color.Black.copy(alpha = 0.62f))
+            .clickable(indication = null, interactionSource = remember { MutableInteractionSource() }) {},
         contentAlignment = Alignment.Center
     ) {
         Surface(

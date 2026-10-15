@@ -10,6 +10,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.*
+import androidx.activity.compose.BackHandler
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -43,6 +44,9 @@ fun SettingsScreen(
     val sensitivity by saveManager.controlSensitivity.collectAsState(initial = 3)
     val btnScale by saveManager.controlBtnScale.collectAsState(initial = 100)
     val btnSpacing by saveManager.controlBtnSpacing.collectAsState(initial = 10)
+    var tutorialHint by remember { mutableStateOf(false) }
+
+    BackHandler(onBack = onBack)
 
     Box(modifier = Modifier.fillMaxSize()) {
         ParallaxBackground(theme = theme, driftEnabled = true)
@@ -63,7 +67,7 @@ fun SettingsScreen(
             }
 
             Column(
-                modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 8.dp),
+                modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).windowInsetsPadding(WindowInsets.navigationBars).padding(horizontal = 16.dp, vertical = 8.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 Text("声音与震动", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = theme.textMuted, letterSpacing = 1.2.sp, modifier = Modifier.padding(top = 4.dp, start = 4.dp))
@@ -217,7 +221,7 @@ fun SettingsScreen(
                             colors = SliderDefaults.colors(activeTrackColor = theme.primaryAccentStrong, thumbColor = theme.primaryAccentStrong, inactiveTrackColor = theme.boardBackground)
                         )
                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) { Text("慢", fontSize = 11.sp, color = theme.textMuted); Text("快", fontSize = 11.sp, color = theme.textMuted) }
-                        Text("左右长按连移与加速的反应速度，1最稳 5最快，默认3等同原来的 70ms/24ms 手感。", fontSize = 11.sp, color = theme.textSecondary, lineHeight = 15.sp)
+                        Text("左右长按连移，以及按住下落时的速度。1 最稳，5 最快，默认 3。", fontSize = 11.sp, color = theme.textSecondary, lineHeight = 15.sp)
 
                         Box(Modifier.fillMaxWidth().height(1.dp).background(theme.boardBorder.copy(alpha = 0.5f)))
 
@@ -281,12 +285,23 @@ fun SettingsScreen(
                             Text("重新查看 旋转/加速/幽灵块 说明", fontSize = 11.sp, color = theme.textSecondary, modifier = Modifier.padding(top = 2.dp))
                         }
                         Button(
-                            onClick = { scope.launch { saveManager.setTutorialDone(false) } },
+                            onClick = {
+                                scope.launch { saveManager.setTutorialDone(false) }
+                                tutorialHint = true
+                            },
                             shape = RoundedCornerShape(12.dp),
                             colors = ButtonDefaults.buttonColors(containerColor = theme.primaryAccentStrong),
                             contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp)
-                        ) { Text("重看", color = androidx.compose.ui.graphics.Color.White, fontWeight = FontWeight.Bold, fontSize = 13.sp) }
+                        ) { Text(if (tutorialHint) "已重置" else "重看", color = androidx.compose.ui.graphics.Color.White, fontWeight = FontWeight.Bold, fontSize = 13.sp) }
                     }
+                }
+                if (tutorialHint) {
+                    Text(
+                        "下一局开局时会重新播放左右移动、旋转和下落说明。",
+                        fontSize = 12.sp,
+                        color = theme.primaryAccentStrong,
+                        modifier = Modifier.padding(horizontal = 6.dp)
+                    )
                 }
 
                 Spacer(Modifier.height(8.dp))

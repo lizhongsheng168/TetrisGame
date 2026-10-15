@@ -99,21 +99,29 @@ class SaveManager(private val context: Context) {
     }
     suspend fun clearSnapshot() { context.dataStore.edit { it.remove(Keys.GAME_SNAPSHOT) } }
 
-    suspend fun updateEndlessResult(score: Int, combo: Int, lines: Int) {
+    /** @return 本次分数是否刷新了最高分 */
+    suspend fun updateEndlessResult(score: Int, combo: Int, lines: Int): Boolean {
+        var isRecord = false
         context.dataStore.edit { prefs ->
             val oldHigh = prefs[Keys.HIGH_SCORE] ?: 0
-            if (score > oldHigh) prefs[Keys.HIGH_SCORE] = score
+            if (score > oldHigh && score > 0) {
+                prefs[Keys.HIGH_SCORE] = score
+                isRecord = true
+            }
             val oldCombo = prefs[Keys.MAX_COMBO] ?: 0
             if (combo > oldCombo) prefs[Keys.MAX_COMBO] = combo
             prefs[Keys.TOTAL_LINES] = (prefs[Keys.TOTAL_LINES] ?: 0) + lines
             prefs[Keys.TOTAL_GAMES] = (prefs[Keys.TOTAL_GAMES] ?: 0) + 1
         }
+        return isRecord
     }
 
     suspend fun completeAdventureLevel(levelId: Int, stars: Int, coinsReward: Int) {
         context.dataStore.edit { prefs ->
             val curLevel = prefs[Keys.CURRENT_LEVEL] ?: 1
             if (levelId >= curLevel) prefs[Keys.CURRENT_LEVEL] = minOf(levelId + 1, 200)
+            val oldMax = prefs[Keys.MAX_LEVEL] ?: 0
+            if (levelId > oldMax) prefs[Keys.MAX_LEVEL] = levelId
             prefs[Keys.COINS] = (prefs[Keys.COINS] ?: 0) + coinsReward
             val raw = prefs[Keys.STAR_LEVELS] ?: ""
             val map = parseStarLevels(raw).toMutableMap()
