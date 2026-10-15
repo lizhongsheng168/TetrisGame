@@ -1,5 +1,6 @@
 package com.tetris.game.ui.screens
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.tween
@@ -22,6 +23,7 @@ import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.VolumeOff
 import androidx.compose.material.icons.filled.VolumeUp
 import androidx.compose.material3.*
@@ -41,6 +43,7 @@ import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.foundation.gestures.awaitFirstDown
@@ -59,6 +62,7 @@ import com.tetris.game.ui.components.TutorialOverlay
 import com.tetris.game.ui.theme.LocalAppTheme
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -74,6 +78,7 @@ fun GameScreen(
     trialRemainBefore: Int = SaveManager.TRIAL_LIMIT,
     onTrialConsumed: () -> Unit = {},
     onExit: () -> Unit,
+    onNextLevel: (Int) -> Unit = {},
     onRequireLicense: () -> Unit = {}
 ) {
     val theme = LocalAppTheme.current
@@ -94,6 +99,8 @@ fun GameScreen(
 
     var tickCount by remember { mutableLongStateOf(0L) }
     var paused by remember { mutableStateOf(false) }
+    var manualPause by remember { mutableStateOf(false) }
+    var baselineHigh by remember { mutableIntStateOf(-1) }
     var gameOver by remember { mutableStateOf(false) }
     var levelClear by remember { mutableStateOf(false) }
     var levelFail by remember { mutableStateOf(false) }
@@ -107,7 +114,6 @@ fun GameScreen(
     val controlBtnScale by saveManager.controlBtnScale.collectAsState(initial = 100)
     val controlBtnSpacing by saveManager.controlBtnSpacing.collectAsState(initial = 10)
     val bgmTrack by saveManager.bgmTrack.collectAsState(initial = "energy")
-    val snapshotJson by saveManager.gameSnapshot.collectAsState(initial = null)
     // 试玩消耗：进入对局即计1局（未授权时），仅计一次避免重组重复
     var trialEntryCounted by remember(mode, levelId) { mutableStateOf(false) }
     LaunchedEffect(mode, levelId, isLicensed) {
@@ -128,40 +134,87 @@ fun GameScreen(
     val lifecycleOwner = LocalLifecycleOwner.current
 
     // 新手引导：仅首局（tutorialDone==false 且无断点续玩）时展示
-    val tutorialDone by saveManager.tutorialDone.collectAsState(initial = true)
     var showTutorial by remember { mutableStateOf(false) }
 
     // 断点续玩：发现同模式同关的快照时弹窗让玩家选择
     var hasCheckedResume by remember(mode, levelId, restartKey) { mutableStateOf(false) }
     var showResumeDialog by remember { mutableStateOf(false) }
+    var resumePayload by remember(mode, levelId, restartKey) { mutableStateOf<String?>(null) }
+    // 再试一次会换一局新引擎，但清快照是异步的。在快照真正清掉前不要再次弹出「继续」。
+    var suppressResume by remember { mutableStateOf(false) }
 
-    LaunchedEffect(snapshotJson, mode, levelId, restartKey) {
-        if (hasCheckedResume) return@LaunchedEffect
-        val json = snapshotJson
-        if (json != null && engine.gameState == GameState.PLAYING) {
-            val snapMode = GameSnapshot.modeOf(json)
-            val snapId = GameSnapshot.levelIdOf(json)
-            if (snapMode == mode && snapId == levelId) {
-                // 有可恢复进度，自动暂停等待选择
-                if (!paused) {
-                    paused = true
-                    engine.togglePause()
-                    BgmManager.pause()
+    LaunchedEffect(Unit) {
+        baselineHigh = saveManager.highScore.first()
+    }
+
+    fun syncOutcome() {
+        when (engine.gameState) {
+            GameState.GAME_OVER -> {
+                if (!gameOver) {
+                    gameOver = true
+                    if (mode == GameMode.ENDLESS) {
+                        scope.launch(Dispatchers.IO) {
+                            saveManager.updateEndlessResult(engine.score, engine.combo, engine.linesCleared)
+                        }
+                    }
                 }
-                showResumeDialog = true
             }
+            GameState.LEVEL_FAIL -> levelFail = true
+            GameState.LEVEL_CLEAR -> levelClear = true
+            else -> {}
+        }
+    }
+
+    fun restartRound() {
+        scope.launch(Dispatchers.IO) { saveManager.clearSnapshot() }
+        paused = false
+        manualPause = false
+        gameOver = false
+        levelFail = false
+        levelClear = false
+        tickCount = 0L
+        suppressResume = true
+        showResumeDialog = false
+        restartKey++
+    }
+
+    fun resumePlay() {
+        paused = false
+        manualPause = false
+        if (engine.gameState == GameState.PAUSED) engine.togglePause()
+        if (bgmEnabled && soundEnabled) BgmManager.resume()
+    }
+
+    // 用 DataStore 的第一次真实读数，而不是 collectAsState 的占位初值。
+    // 占位初值会让「已看过教学 / 没有存档」先成立，引导和续玩弹窗就再也不会出现。
+    LaunchedEffect(mode, levelId, restartKey) {
+        if (hasCheckedResume || suppressResume) {
+            hasCheckedResume = true
+            return@LaunchedEffect
+        }
+        val json = withContext(Dispatchers.IO) { saveManager.gameSnapshot.first() }
+        val tutorialAlreadyDone = withContext(Dispatchers.IO) { saveManager.tutorialDone.first() }
+        if (hasCheckedResume || suppressResume) {
+            hasCheckedResume = true
+            return@LaunchedEffect
+        }
+        val sameRound = json != null && GameSnapshot.modeOf(json) == mode && GameSnapshot.levelIdOf(json) == levelId
+        if (sameRound && engine.gameState == GameState.PLAYING) {
+            resumePayload = json
+            if (!paused) {
+                paused = true
+                engine.togglePause()
+                BgmManager.pause()
+            }
+            showResumeDialog = true
         }
         hasCheckedResume = true
-        // 首局教学：无断点且未完成过引导时，暂停并弹出教学
-        if (!tutorialDone && !showResumeDialog && !showTutorial) {
-            val hasSnapshot = json != null && GameSnapshot.modeOf(json) == mode && GameSnapshot.levelIdOf(json) == levelId
-            if (!hasSnapshot) {
-                showTutorial = true
-                if (!paused) {
-                    paused = true
-                    engine.togglePause()
-                    BgmManager.pause()
-                }
+        if (!tutorialAlreadyDone && !showResumeDialog && !showTutorial && !sameRound) {
+            showTutorial = true
+            if (!paused) {
+                paused = true
+                engine.togglePause()
+                BgmManager.pause()
             }
         }
     }
@@ -189,6 +242,7 @@ fun GameScreen(
                     if (showTutorial) { BgmManager.pause() }
                     else if (autoPauseOnBg && engine.gameState == GameState.PLAYING && !gameOver && !levelClear && !levelFail && !showResumeDialog) {
                         paused = true
+                        manualPause = false
                         engine.togglePause()
                         BgmManager.pause()
                     } else {
@@ -242,38 +296,18 @@ fun GameScreen(
                         if (soundEnabled) SoundManager.playLock()
                         if (hapticEnabled) haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                     }
-                    when (engine.gameState) {
-                        GameState.GAME_OVER -> {
-                            gameOver = true
-                            if (mode == GameMode.ENDLESS) {
-                                launch(Dispatchers.IO) { saveManager.updateEndlessResult(engine.score, engine.combo, engine.linesCleared) }
-                            }
-                        }
-                        GameState.LEVEL_FAIL -> levelFail = true
-                        GameState.LEVEL_CLEAR -> levelClear = true
-                        else -> {}
-                    }
+                    syncOutcome()
                 }
                 tickCount++
             } else {
-                when (engine.gameState) {
-                    GameState.LEVEL_FAIL -> levelFail = true
-                    GameState.LEVEL_CLEAR -> levelClear = true
-                    GameState.GAME_OVER -> {
-                        gameOver = true
-                        if (mode == GameMode.ENDLESS) {
-                            launch(Dispatchers.IO) { saveManager.updateEndlessResult(engine.score, engine.combo, engine.linesCleared) }
-                        }
-                    }
-                    else -> {}
-                }
+                syncOutcome()
             }
         }
     }
 
     LaunchedEffect(levelClear) {
         if (mode == GameMode.ADVENTURE && levelClear) {
-            val s = calculateStars(engine, levelConfig)
+            val s = if (levelConfig != null) adventureStars(engine.linesCleared, engine.moveCount, levelConfig) else 1
             stars = s
             val coinsReward = 20 + s * 10
             withContext(Dispatchers.IO) { saveManager.completeAdventureLevel(levelId, s, coinsReward) }
@@ -322,6 +356,35 @@ fun GameScreen(
     LaunchedEffect(gameOver) { if (gameOver && soundEnabled) SoundManager.playGameOver() }
     LaunchedEffect(levelClear) { if (levelClear && soundEnabled) SoundManager.playLevelClear() }
 
+    BackHandler {
+        when {
+            showTutorial -> {
+                scope.launch(Dispatchers.IO) { saveManager.setTutorialDone(true) }
+                showTutorial = false
+                resumePlay()
+            }
+            showResumeDialog -> {
+                scope.launch(Dispatchers.IO) { saveManager.clearSnapshot() }
+                showResumeDialog = false
+                resumePlay()
+            }
+            gameOver || levelClear || levelFail -> {
+                BgmManager.stop()
+                onExit()
+            }
+            paused -> resumePlay()
+            else -> {
+                if (engine.gameState == GameState.PLAYING || engine.gameState == GameState.PAUSED) {
+                    scope.launch(Dispatchers.IO) {
+                        try { saveManager.saveSnapshot(GameSnapshot.encode(engine, mode, levelId)) } catch (_: Exception) {}
+                    }
+                }
+                BgmManager.stop()
+                onExit()
+            }
+        }
+    }
+
     Box(modifier = Modifier.fillMaxSize()) {
         ParallaxBackground(
             theme = theme,
@@ -329,11 +392,12 @@ fun GameScreen(
             driftEnabled = true
         )
 
-        Column(modifier = Modifier.fillMaxSize()) {
-            Spacer(modifier = Modifier.windowInsetsPadding(WindowInsets.statusBars).height(12.dp))
+        Column(modifier = Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.navigationBars)) {
+            Spacer(modifier = Modifier.windowInsetsPadding(WindowInsets.statusBars).height(8.dp))
             GameTopBar(
                 mode = mode,
                 levelId = levelId,
+                levelName = levelConfig?.name,
                 score = engine.score,
                 level = engine.level,
                 lines = engine.linesCleared,
@@ -342,9 +406,15 @@ fun GameScreen(
                 soundEnabled = soundEnabled,
                 onToggleSound = { scope.launch { saveManager.setSoundEnabled(!soundEnabled) } },
                 onPause = {
-                    if (showResumeDialog) return@GameTopBar
-                    paused = !paused; engine.togglePause()
-                    if (paused) BgmManager.pause() else BgmManager.resume()
+                    if (showResumeDialog || showTutorial || gameOver || levelClear || levelFail) return@GameTopBar
+                    if (paused) {
+                        resumePlay()
+                    } else if (engine.gameState == GameState.PLAYING) {
+                        paused = true
+                        manualPause = true
+                        engine.togglePause()
+                        BgmManager.pause()
+                    }
                     if (soundEnabled) SoundManager.playPause()
                     if (hapticEnabled) haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                 },
@@ -387,7 +457,6 @@ fun GameScreen(
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    ScorePanel(score = engine.score, linesCleared = engine.linesCleared, level = engine.level)
                     if (mode == GameMode.ADVENTURE) {
                         AdventureGoalPanel(linesCleared = engine.linesCleared, moveCount = engine.moveCount, config = levelConfig)
                     }
@@ -418,6 +487,16 @@ fun GameScreen(
                     sensitivity = controlSensitivity,
                     btnScale = controlBtnScale,
                     btnSpacing = controlBtnSpacing,
+                    onHardDrop = {
+                        if (showResumeDialog || showTutorial || paused) return@ControlArea
+                        if (engine.gameState == GameState.PLAYING) {
+                            val prevSeq = engine.clearSeq
+                            engine.hardDrop()
+                            if (engine.clearSeq == prevSeq && soundEnabled) SoundManager.playLock()
+                            tickCount++
+                            syncOutcome()
+                        }
+                    },
                     onMoveLeft = {
                         if (showResumeDialog || showTutorial) return@ControlArea
                         if (engine.gameState == GameState.PLAYING) {
@@ -448,7 +527,7 @@ fun GameScreen(
                     }
                 )
             }
-            Spacer(modifier = Modifier.height(40.dp))
+            Spacer(modifier = Modifier.height(12.dp))
         }
 
         androidx.compose.animation.AnimatedVisibility(
@@ -503,7 +582,10 @@ fun GameScreen(
         // 断点续玩弹窗
         if (showResumeDialog) {
             Box(
-                modifier = Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.55f)),
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color.Black.copy(alpha = 0.55f))
+                    .clickable(indication = null, interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }) {},
                 contentAlignment = Alignment.Center
             ) {
                 Surface(
@@ -520,43 +602,20 @@ fun GameScreen(
                         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                             OutlinedButton(
                                 onClick = {
-                                    // 放弃进度，重新开始
                                     scope.launch(Dispatchers.IO) { saveManager.clearSnapshot() }
                                     showResumeDialog = false
-                                    // 确保处于可玩状态
-                                    if (engine.gameState == GameState.PAUSED) {
-                                        paused = false
-                                        engine.togglePause()
-                                        BgmManager.resume()
-                                    } else {
-                                        paused = false
-                                    }
+                                    resumePlay()
                                 },
                                 shape = RoundedCornerShape(12.dp)
                             ) { Text("重新开始", color = theme.textPrimary) }
                             Button(
                                 onClick = {
-                                    val json = snapshotJson ?: return@Button
+                                    val json = resumePayload ?: return@Button
                                     val ok = try { GameSnapshot.decode(json, engine) } catch (_: Exception) { false }
-                                    if (ok) {
-                                        tickCount++
-                                        showResumeDialog = false
-                                        // 保持暂停，让玩家手动点继续
-                                        if (engine.gameState != GameState.PAUSED) {
-                                            // 解码后若是 PLAYING，自动切暂停等待手动继续
-                                            if (engine.gameState == GameState.PLAYING) {
-                                                engine.togglePause()
-                                                paused = true
-                                            }
-                                        } else {
-                                            paused = true
-                                        }
-                                    } else {
-                                        scope.launch(Dispatchers.IO) { saveManager.clearSnapshot() }
-                                        showResumeDialog = false
-                                        paused = false
-                                        if (engine.gameState == GameState.PAUSED) engine.togglePause()
-                                    }
+                                    showResumeDialog = false
+                                    if (ok) tickCount++
+                                    else scope.launch(Dispatchers.IO) { saveManager.clearSnapshot() }
+                                    resumePlay()
                                 },
                                 shape = RoundedCornerShape(12.dp),
                                 colors = ButtonDefaults.buttonColors(containerColor = theme.primaryAccentStrong)
@@ -570,31 +629,74 @@ fun GameScreen(
         // 试玩用完的终局：立即引导激活（试玩期内为普通游戏结束）
         if (gameOver) {
             val trialExhausted = !isLicensed && trialRemainBefore <= 1
+            val isNewRecord = mode == GameMode.ENDLESS && baselineHigh >= 0 && engine.score > baselineHigh && engine.score > 0
+            val adventureProgress = if (mode == GameMode.ADVENTURE && levelConfig != null) {
+                "目标 ${levelConfig.goalLines} 行，已消除 ${engine.linesCleared} 行"
+            } else null
             OverlayDialog(
-                title = if (trialExhausted) "试玩已结束" else if (mode == GameMode.ENDLESS) "游戏结束" else "关卡失败",
-                subTitle = if (trialExhausted) "已用完 ${SaveManager.TRIAL_LIMIT} 局试玩 · 得分 ${engine.score} · 激活后畅玩无限制" else "得分 ${engine.score} · 消除 ${engine.linesCleared} 行",
-                buttonText = if (trialExhausted) "去激活" else "重新开始",
-                secondaryText = if (trialExhausted) "返回首页" else null,
+                title = when {
+                    trialExhausted -> "试玩已结束"
+                    isNewRecord -> "新纪录"
+                    mode == GameMode.ENDLESS -> "游戏结束"
+                    else -> "堆到顶了"
+                },
+                subTitle = when {
+                    trialExhausted -> "已用完 ${SaveManager.TRIAL_LIMIT} 局试玩 · 得分 ${engine.score}\n激活后可以无限畅玩"
+                    isNewRecord -> "得分 ${engine.score} · 消除 ${engine.linesCleared} 行\n超过了之前的 $baselineHigh 分"
+                    adventureProgress != null -> "$adventureProgress\n得分 ${engine.score}"
+                    else -> "得分 ${engine.score} · 消除 ${engine.linesCleared} 行"
+                },
+                buttonText = if (trialExhausted) "去激活" else "再来一局",
+                secondaryText = if (trialExhausted) "返回首页" else if (mode == GameMode.ADVENTURE) "返回选关" else "返回首页",
+                icon = if (isNewRecord) Icons.Filled.Star else Icons.Filled.Refresh,
                 onAction = {
                     if (trialExhausted) {
                         BgmManager.stop()
                         onRequireLicense()
                     } else {
-                        scope.launch(Dispatchers.IO) { saveManager.clearSnapshot() }
-                        paused = false; gameOver = false; levelFail = false; levelClear = false; tickCount = 0L; restartKey++; hasCheckedResume = false; showResumeDialog = false
+                        restartRound()
                     }
                 },
-                onSecondary = if (trialExhausted) { { BgmManager.stop(); onExit() } } else null
+                onSecondary = { BgmManager.stop(); onExit() }
             )
         }
-        if (paused && !showResumeDialog && !showTutorial) {
-            OverlayDialog(title = "已暂停", subTitle = "切后台已自动暂停", buttonText = "继续", onAction = { paused = false; engine.togglePause(); BgmManager.resume() })
+        if (paused && !showResumeDialog && !showTutorial && !gameOver && !levelClear && !levelFail) {
+            OverlayDialog(
+                title = "已暂停",
+                subTitle = if (manualPause) "点继续回到对局" else "切到后台已自动暂停，点继续即可",
+                buttonText = "继续",
+                icon = Icons.Filled.PlayArrow,
+                onAction = { resumePlay() }
+            )
         }
         if (levelClear) {
-            OverlayDialog(title = "关卡完成!", subTitle = "获得 $stars 星 · 得分 ${engine.score}", buttonText = "继续闯关", onAction = { BgmManager.stop(); onExit() })
+            val earned = if (levelConfig != null) adventureStars(engine.linesCleared, engine.moveCount, levelConfig) else stars.coerceAtLeast(1)
+            val reward = 20 + earned * 10
+            val hasNext = mode == GameMode.ADVENTURE && levelId in 1 until 200
+            val starText = "★".repeat(earned) + "☆".repeat((3 - earned).coerceAtLeast(0))
+            OverlayDialog(
+                title = "关卡完成",
+                subTitle = "$starText  $earned 星 · +$reward 金币\n${adventureStarHint(levelConfig)} · 得分 ${engine.score}",
+                buttonText = if (hasNext) "下一关" else "返回选关",
+                secondaryText = if (hasNext) "返回选关" else null,
+                icon = Icons.Filled.Star,
+                onAction = {
+                    BgmManager.stop()
+                    if (hasNext) onNextLevel(levelId + 1) else onExit()
+                },
+                onSecondary = if (hasNext) { { BgmManager.stop(); onExit() } } else null
+            )
         }
         if (levelFail) {
-            OverlayDialog(title = "步数用尽", subTitle = "已达步数限制，再试一次吧", buttonText = "返回关卡", onAction = { BgmManager.stop(); onExit() })
+            val remainLines = ((levelConfig?.goalLines ?: 0) - engine.linesCleared).coerceAtLeast(0)
+            OverlayDialog(
+                title = "步数用尽",
+                subTitle = if (remainLines > 0) "还差 $remainLines 行。步数用完前消满目标就能过关" else "步数刚好用完，再试一次可以冲更高星级",
+                buttonText = "再试一次",
+                secondaryText = "返回选关",
+                onAction = { restartRound() },
+                onSecondary = { BgmManager.stop(); onExit() }
+            )
         }
 
         if (showTutorial) {
@@ -618,23 +720,11 @@ fun GameScreen(
     }
 }
 
-private fun calculateStars(engine: TetrisEngine, config: LevelConfig?): Int {
-    if (config == null) return 3
-    if (config.moveLimit > 0) {
-        val remain = config.moveLimit - engine.moveCount
-        return when {
-            remain >= 5 -> 3
-            remain >= 0 -> 2
-            else -> 1
-        }
-    }
-    return if (engine.linesCleared >= config.goalLines + 3) 3 else 2
-}
-
 @Composable
 private fun GameTopBar(
     mode: GameMode,
     levelId: Int,
+    levelName: String?,
     score: Int,
     level: Int,
     lines: Int,
@@ -668,8 +758,17 @@ private fun GameTopBar(
                 Box(modifier = Modifier.size(7.dp).clip(CircleShape).background(if (mode == GameMode.ENDLESS) theme.primaryAccentStrong else theme.secondaryAccent))
                 Spacer(modifier = Modifier.width(6.dp))
                 Text(
-                    text = if (mode == GameMode.ENDLESS) "经典无尽" else "关卡 $levelId",
-                    fontSize = 13.sp, fontWeight = FontWeight.Bold, color = theme.textPrimary, letterSpacing = 0.2.sp
+                    text = when {
+                        mode == GameMode.ENDLESS -> "经典无尽"
+                        !levelName.isNullOrBlank() -> levelName
+                        else -> "关卡 $levelId"
+                    },
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = theme.textPrimary,
+                    letterSpacing = 0.2.sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
                 )
                 Spacer(modifier = Modifier.width(8.dp))
                 Surface(shape = RoundedCornerShape(6.dp), color = theme.boardCardBackground, border = BorderStroke(1.dp, theme.boardBorder)) {
@@ -725,35 +824,6 @@ private fun SidePanel(title: String, content: @Composable () -> Unit) {
 }
 
 @Composable
-private fun ScorePanel(score: Int, linesCleared: Int, level: Int) {
-    val theme = LocalAppTheme.current
-    Surface(
-        shape = RoundedCornerShape(12.dp),
-        color = theme.boardCardBackground,
-        border = BorderStroke(1.dp, theme.boardBorder),
-        shadowElevation = 6.dp,
-        modifier = Modifier.fillMaxWidth()
-    ) {
-        Column(modifier = Modifier.padding(horizontal = 10.dp, vertical = 10.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-            Text(text = "分数", fontSize = 10.sp, color = theme.textMuted, letterSpacing = 0.6.sp)
-            Text(text = "$score", fontSize = 16.sp, fontWeight = FontWeight.Black, color = theme.textPrimary, modifier = Modifier.padding(top = 1.dp))
-            Box(modifier = Modifier.fillMaxWidth().padding(vertical = 7.dp).height(1.dp).background(theme.boardBorder.copy(alpha = 0.7f)))
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text(text = "消除", fontSize = 9.sp, color = theme.textMuted)
-                    Text(text = "$linesCleared", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = theme.textPrimary)
-                }
-                Box(modifier = Modifier.width(1.dp).height(26.dp).background(theme.boardBorder.copy(alpha = 0.5f)))
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text(text = "等级", fontSize = 9.sp, color = theme.textMuted)
-                    Text(text = "$level", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = theme.secondaryAccent)
-                }
-            }
-        }
-    }
-}
-
-@Composable
 private fun NextQueueSection(next1: TetrominoType?, next2: TetrominoType?) {
     Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
         SidePanel(title = "NEXT") { MiniBoardView(next1, "next1") }
@@ -784,6 +854,7 @@ private fun AdventureGoalPanel(linesCleared: Int, moveCount: Int, config: LevelC
                 )
             }
             Text(text = "$linesCleared / ${config.goalLines}", fontSize = 10.sp, color = theme.textMuted, modifier = Modifier.padding(top = 4.dp))
+            Text(text = adventureStarHint(config, compact = true), fontSize = 9.sp, color = theme.textMuted, modifier = Modifier.padding(top = 2.dp), textAlign = TextAlign.Center, maxLines = 1)
             if (config.moveLimit > 0) {
                 Spacer(modifier = Modifier.height(6.dp))
                 Box(modifier = Modifier.fillMaxWidth().height(1.dp).background(theme.boardBorder.copy(alpha = 0.5f)))
@@ -796,10 +867,21 @@ private fun AdventureGoalPanel(linesCleared: Int, moveCount: Int, config: LevelC
 }
 
 @Composable
-private fun OverlayDialog(title: String, subTitle: String? = null, buttonText: String, secondaryText: String? = null, onAction: () -> Unit, onSecondary: (() -> Unit)? = null) {
+private fun OverlayDialog(
+    title: String,
+    subTitle: String? = null,
+    buttonText: String,
+    secondaryText: String? = null,
+    icon: ImageVector = Icons.Filled.Refresh,
+    onAction: () -> Unit,
+    onSecondary: (() -> Unit)? = null
+) {
     val theme = LocalAppTheme.current
     Box(
-        modifier = Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.55f)),
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color.Black.copy(alpha = 0.55f))
+            .clickable(indication = null, interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }) {},
         contentAlignment = Alignment.Center
     ) {
         Surface(
@@ -811,12 +893,12 @@ private fun OverlayDialog(title: String, subTitle: String? = null, buttonText: S
         ) {
             Column(modifier = Modifier.padding(horizontal = 28.dp, vertical = 26.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                 Box(modifier = Modifier.size(48.dp).clip(CircleShape).background(Brush.linearGradient(listOf(theme.primaryAccentStrong.copy(alpha = 0.9f), theme.secondaryAccent.copy(alpha = 0.9f)))), contentAlignment = Alignment.Center) {
-                    Icon(Icons.Filled.Refresh, contentDescription = null, tint = Color.White, modifier = Modifier.size(22.dp))
+                    Icon(icon, contentDescription = null, tint = Color.White, modifier = Modifier.size(22.dp))
                 }
                 Spacer(modifier = Modifier.height(12.dp))
                 Text(text = title, fontSize = 22.sp, fontWeight = FontWeight.Black, color = theme.textPrimary, textAlign = TextAlign.Center)
                 if (subTitle != null) {
-                    Text(text = subTitle, fontSize = 13.sp, color = theme.textSecondary, modifier = Modifier.padding(top = 6.dp), textAlign = TextAlign.Center)
+                    Text(text = subTitle, fontSize = 13.sp, color = theme.textSecondary, modifier = Modifier.padding(top = 6.dp), textAlign = TextAlign.Center, lineHeight = 18.sp)
                 }
                 Spacer(modifier = Modifier.height(18.dp))
                 Button(
@@ -836,8 +918,8 @@ private fun OverlayDialog(title: String, subTitle: String? = null, buttonText: S
 }
 
 @Composable
-private fun ControlArea(enabled: Boolean = true, hapticEnabled: Boolean, sensitivity: Int = 3, btnScale: Int = 100, btnSpacing: Int = 10, onMoveLeft: () -> Unit, onMoveRight: () -> Unit, onRotate: () -> Unit, onSoftDrop: () -> Unit) {
-    ButtonControlArea(enabled = enabled, hapticEnabled = hapticEnabled, sensitivity = sensitivity, btnScale = btnScale, btnSpacing = btnSpacing, onMoveLeft = onMoveLeft, onMoveRight = onMoveRight, onRotate = onRotate, onSoftDrop = onSoftDrop)
+private fun ControlArea(enabled: Boolean = true, hapticEnabled: Boolean, sensitivity: Int = 3, btnScale: Int = 100, btnSpacing: Int = 10, onMoveLeft: () -> Unit, onMoveRight: () -> Unit, onRotate: () -> Unit, onSoftDrop: () -> Unit, onHardDrop: () -> Unit) {
+    ButtonControlArea(enabled = enabled, hapticEnabled = hapticEnabled, sensitivity = sensitivity, btnScale = btnScale, btnSpacing = btnSpacing, onMoveLeft = onMoveLeft, onMoveRight = onMoveRight, onRotate = onRotate, onSoftDrop = onSoftDrop, onHardDrop = onHardDrop)
 }
 
 private fun moveRepeatMs(s: Int): Long = when (s.coerceIn(1, 5)) { 1 -> 95L; 2 -> 80L; 3 -> 70L; 4 -> 52L; 5 -> 38L; else -> 70L }
@@ -846,7 +928,7 @@ private fun dropRepeatMs(s: Int): Long = when (s.coerceIn(1, 5)) { 1 -> 38L; 2 -
 private fun dropInitialMs(s: Int): Long = when (s.coerceIn(1, 5)) { 1 -> 165L; 2 -> 140L; 3 -> 120L; 4 -> 95L; 5 -> 75L; else -> 120L }
 
 @Composable
-private fun ButtonControlArea(enabled: Boolean = true, hapticEnabled: Boolean, sensitivity: Int = 3, btnScale: Int = 100, btnSpacing: Int = 10, onMoveLeft: () -> Unit, onMoveRight: () -> Unit, onRotate: () -> Unit, onSoftDrop: () -> Unit) {
+private fun ButtonControlArea(enabled: Boolean = true, hapticEnabled: Boolean, sensitivity: Int = 3, btnScale: Int = 100, btnSpacing: Int = 10, onMoveLeft: () -> Unit, onMoveRight: () -> Unit, onRotate: () -> Unit, onSoftDrop: () -> Unit, onHardDrop: () -> Unit) {
     val theme = LocalAppTheme.current
     val btnDp = (68f * (btnScale / 100f)).dp
     val sp = btnSpacing.dp
@@ -855,7 +937,7 @@ private fun ButtonControlArea(enabled: Boolean = true, hapticEnabled: Boolean, s
         color = theme.boardCardBackground.copy(alpha = 0.92f),
         border = BorderStroke(1.dp, theme.boardBorder.copy(alpha = 0.7f)),
         shadowElevation = 10.dp,
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 10.dp)
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 10.dp).graphicsLayer { alpha = if (enabled) 1f else 0.4f }
     ) {
         Row(
             modifier = Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 10.dp),
@@ -865,7 +947,7 @@ private fun ButtonControlArea(enabled: Boolean = true, hapticEnabled: Boolean, s
             HoldMoveButton(hapticEnabled = hapticEnabled, sensitivity = sensitivity, btnSize = btnDp, icon = Icons.AutoMirrored.Filled.KeyboardArrowLeft, contentDesc = "左移", onMove = onMoveLeft)
             HoldMoveButton(hapticEnabled = hapticEnabled, sensitivity = sensitivity, btnSize = btnDp, icon = Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDesc = "右移", onMove = onMoveRight)
             RotateButton(hapticEnabled = hapticEnabled, btnSize = btnDp, onRotate = onRotate)
-            HoldSoftDropButton(hapticEnabled = hapticEnabled, sensitivity = sensitivity, btnSize = btnDp, onSoftDrop = onSoftDrop)
+            HoldSoftDropButton(hapticEnabled = hapticEnabled, sensitivity = sensitivity, btnSize = btnDp, onSoftDrop = onSoftDrop, onHardDrop = onHardDrop)
         }
     }
 }
@@ -888,7 +970,10 @@ private fun RotateButton(hapticEnabled: Boolean, btnSize: androidx.compose.ui.un
         }
     ) {
         Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
-            Icon(Icons.Filled.Refresh, contentDescription = "旋转", tint = theme.textPrimary, modifier = Modifier.size(26.dp))
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Icon(Icons.Filled.Refresh, contentDescription = "旋转", tint = theme.textPrimary, modifier = Modifier.size(22.dp))
+                Text(text = "旋转", fontSize = 9.sp, color = theme.textPrimary, fontWeight = FontWeight.Bold)
+            }
         }
     }
     LaunchedEffect(pressed) { if (pressed) { delay(120); pressed = false } }
@@ -931,11 +1016,12 @@ private fun HoldMoveButton(hapticEnabled: Boolean, sensitivity: Int = 3, btnSize
 }
 
 @Composable
-private fun HoldSoftDropButton(hapticEnabled: Boolean, sensitivity: Int = 3, btnSize: androidx.compose.ui.unit.Dp = 68.dp, onSoftDrop: () -> Unit) {
+private fun HoldSoftDropButton(hapticEnabled: Boolean, sensitivity: Int = 3, btnSize: androidx.compose.ui.unit.Dp = 68.dp, onSoftDrop: () -> Unit, onHardDrop: () -> Unit) {
     val theme = LocalAppTheme.current
     val haptic = LocalHapticFeedback.current
     var pressed by remember { mutableStateOf(false) }
     val latest by rememberUpdatedState(onSoftDrop)
+    val hardDrop by rememberUpdatedState(onHardDrop)
     val scale by animateFloatAsState(if (pressed) 0.93f else 1f, label = "dropScale")
     Surface(
         shape = RoundedCornerShape(16.dp),
@@ -948,9 +1034,12 @@ private fun HoldSoftDropButton(hapticEnabled: Boolean, sensitivity: Int = 3, btn
                     awaitFirstDown(requireUnconsumed = false)
                     pressed = true
                     if (hapticEnabled) haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                    latest()
                     val earlyUp = withTimeoutOrNull(dropInitialMs(sensitivity)) { waitForUpOrCancellation() }
-                    if (earlyUp != null) { pressed = false; continue }
+                    if (earlyUp != null) {
+                        pressed = false
+                        hardDrop()
+                        continue
+                    }
                     if (hapticEnabled) haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                     while (true) {
                         latest()
@@ -963,8 +1052,8 @@ private fun HoldSoftDropButton(hapticEnabled: Boolean, sensitivity: Int = 3, btn
     ) {
         Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Icon(Icons.Filled.KeyboardArrowDown, contentDescription = "加速", tint = Color.White, modifier = Modifier.size(26.dp))
-                Text(text = "加速", fontSize = 9.sp, color = Color.White.copy(alpha = 0.95f), fontWeight = FontWeight.Bold, letterSpacing = 0.4.sp)
+                Icon(Icons.Filled.KeyboardArrowDown, contentDescription = "下落", tint = Color.White, modifier = Modifier.size(22.dp))
+                Text(text = "下落", fontSize = 9.sp, color = Color.White.copy(alpha = 0.95f), fontWeight = FontWeight.Bold, letterSpacing = 0.4.sp)
             }
         }
     }
