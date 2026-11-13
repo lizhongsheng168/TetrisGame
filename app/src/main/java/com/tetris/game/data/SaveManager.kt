@@ -138,12 +138,16 @@ class SaveManager(private val context: Context) {
     }
 
     suspend fun spendCoins(amount: Int): Boolean {
+        if (amount <= 0) return false
         var ok = false
         context.dataStore.edit { prefs ->
             val cur = prefs[Keys.COINS] ?: 0
             if (cur >= amount) {
                 prefs[Keys.COINS] = cur - amount
                 ok = true
+            } else {
+                // edit 可能重试，必须把上一次的结果清掉
+                ok = false
             }
         }
         return ok

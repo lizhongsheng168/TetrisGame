@@ -114,6 +114,7 @@ fun GameScreen(
     val controlBtnScale by saveManager.controlBtnScale.collectAsState(initial = 100)
     val controlBtnSpacing by saveManager.controlBtnSpacing.collectAsState(initial = 10)
     val bgmTrack by saveManager.bgmTrack.collectAsState(initial = "energy")
+    val coins by saveManager.coins.collectAsState(initial = 0)
     // 试玩消耗：进入对局即计1局（未授权时），仅计一次避免重组重复
     var trialEntryCounted by remember(mode, levelId) { mutableStateOf(false) }
     LaunchedEffect(mode, levelId, isLicensed) {
@@ -140,6 +141,8 @@ fun GameScreen(
     var hasCheckedResume by remember(mode, levelId, restartKey) { mutableStateOf(false) }
     var showResumeDialog by remember { mutableStateOf(false) }
     var resumePayload by remember(mode, levelId, restartKey) { mutableStateOf<String?>(null) }
+    var retryPurchasing by remember { mutableStateOf(false) }
+    var retryBlocked by remember { mutableStateOf<String?>(null) }
     // 再试一次会换一局新引擎，但清快照是异步的。在快照真正清掉前不要再次弹出「继续」。
     var suppressResume by remember { mutableStateOf(false) }
 
@@ -175,7 +178,28 @@ fun GameScreen(
         tickCount = 0L
         suppressResume = true
         showResumeDialog = false
+        retryBlocked = null
         restartKey++
+    }
+
+    fun buyAdventureRetry() {
+        if (retryPurchasing) return
+        if (!adventureRetryQuote(coins).canAfford) {
+            retryBlocked = null
+            return
+        }
+        retryPurchasing = true
+        scope.launch {
+            // 先扣存档里的余额。不够就拒绝，不重开。
+            val paid = withContext(Dispatchers.IO) { saveManager.spendCoins(ADVENTURE_RETRY_COST) }
+            if (paid) {
+                retryBlocked = null
+                restartRound()
+            } else {
+                retryBlocked = "金币不够，没有扣款，也没有重开"
+            }
+            retryPurchasing = false
+        }
     }
 
     fun resumePlay() {
@@ -630,9 +654,11 @@ fun GameScreen(
         if (gameOver) {
             val trialExhausted = !isLicensed && trialRemainBefore <= 1
             val isNewRecord = mode == GameMode.ENDLESS && baselineHigh >= 0 && engine.score > baselineHigh && engine.score > 0
-            val adventureProgress = if (mode == GameMode.ADVENTURE && levelConfig != null) {
+            val adventureTopOut = mode == GameMode.ADVENTURE && !trialExhausted
+            val adventureProgress = if (adventureTopOut && levelConfig != null) {
                 "目标 ${levelConfig.goalLines} 行，已消除 ${engine.linesCleared} 行"
             } else null
+            val priceLine = adventureRetryPriceLine(coins)
             OverlayDialog(
                 title = when {
                     trialExhausted -> "试玩已结束"
@@ -643,16 +669,24 @@ fun GameScreen(
                 subTitle = when {
                     trialExhausted -> "已用完 ${SaveManager.TRIAL_LIMIT} 局试玩 · 得分 ${engine.score}\n激活后可以无限畅玩"
                     isNewRecord -> "得分 ${engine.score} · 消除 ${engine.linesCleared} 行\n超过了之前的 $baselineHigh 分"
-                    adventureProgress != null -> "$adventureProgress\n得分 ${engine.score}"
+                    adventureProgress != null -> "$adventureProgress\n得分 ${engine.score}\n$priceLine" + (retryBlocked?.let { "\n$it" } ?: "")
+                    adventureTopOut -> "得分 ${engine.score} · 消除 ${engine.linesCleared} 行\n$priceLine" + (retryBlocked?.let { "\n$it" } ?: "")
                     else -> "得分 ${engine.score} · 消除 ${engine.linesCleared} 行"
                 },
-                buttonText = if (trialExhausted) "去激活" else "再来一局",
+                buttonText = when {
+                    trialExhausted -> "去激活"
+                    adventureTopOut && retryPurchasing -> "正在重开"
+                    adventureTopOut -> adventureRetryButtonLabel(coins)
+                    else -> "再来一局"
+                },
                 secondaryText = if (trialExhausted) "返回首页" else if (mode == GameMode.ADVENTURE) "返回选关" else "返回首页",
                 icon = if (isNewRecord) Icons.Filled.Star else Icons.Filled.Refresh,
                 onAction = {
                     if (trialExhausted) {
                         BgmManager.stop()
                         onRequireLicense()
+                    } else if (adventureTopOut) {
+                        buyAdventureRetry()
                     } else {
                         restartRound()
                     }
@@ -689,12 +723,13 @@ fun GameScreen(
         }
         if (levelFail) {
             val remainLines = ((levelConfig?.goalLines ?: 0) - engine.linesCleared).coerceAtLeast(0)
+            val progressLine = if (remainLines > 0) "还差 $remainLines 行" else "步数刚好用完"
             OverlayDialog(
                 title = "步数用尽",
-                subTitle = if (remainLines > 0) "还差 $remainLines 行。步数用完前消满目标就能过关" else "步数刚好用完，再试一次可以冲更高星级",
-                buttonText = "再试一次",
+                subTitle = "$progressLine\n${adventureRetryPriceLine(coins)}" + (retryBlocked?.let { "\n$it" } ?: ""),
+                buttonText = if (retryPurchasing) "正在重开" else adventureRetryButtonLabel(coins),
                 secondaryText = "返回选关",
-                onAction = { restartRound() },
+                onAction = { buyAdventureRetry() },
                 onSecondary = { BgmManager.stop(); onExit() }
             )
         }

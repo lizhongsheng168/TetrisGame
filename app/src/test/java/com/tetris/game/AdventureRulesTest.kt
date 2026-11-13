@@ -6,7 +6,12 @@ import com.tetris.game.engine.LevelCatalog
 import com.tetris.game.engine.Piece
 import com.tetris.game.engine.TetrisEngine
 import com.tetris.game.engine.TetrominoType
+import com.tetris.game.engine.ADVENTURE_RETRY_COST
+import com.tetris.game.engine.adventureRetryButtonLabel
+import com.tetris.game.engine.adventureRetryPriceLine
+import com.tetris.game.engine.adventureRetryQuote
 import com.tetris.game.engine.adventureStars
+import com.tetris.game.engine.startAdventureRetry
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -53,5 +58,34 @@ class AdventureRulesTest {
         for (c in 0 until BOARD_WIDTH - 1) {
             assertFalse("补上缺口后障碍行应被消掉", engine.board[19][c] == -1)
         }
+    }
+
+    @Test fun retryCostsThirtyAndShowsThePriceBeforeCharging() {
+        assertEquals(30, ADVENTURE_RETRY_COST)
+        val quote = adventureRetryQuote(50)
+        assertTrue(quote.canAfford)
+        assertEquals(30, quote.cost)
+        assertEquals(50, quote.balance)
+        assertEquals("再试一次需要 30 金币，当前 50 金币", adventureRetryPriceLine(50))
+        assertEquals("30 金币再试一次", adventureRetryButtonLabel(50))
+        assertEquals(20, startAdventureRetry(50))
+        assertEquals(50, quote.balance)
+    }
+
+    @Test fun retryRefusesWhenCoinsAreShortAndDoesNotCharge() {
+        val quote = adventureRetryQuote(12)
+        assertFalse(quote.canAfford)
+        assertEquals(18, quote.shortfall)
+        assertEquals("再试一次需要 30 金币，当前只有 12 金币，还差 18 金币", adventureRetryPriceLine(12))
+        assertEquals("金币不足", adventureRetryButtonLabel(12))
+        assertEquals(null, startAdventureRetry(12))
+        assertEquals(null, startAdventureRetry(29))
+        assertEquals(null, startAdventureRetry(-4))
+        assertEquals(30, adventureRetryQuote(-4).shortfall)
+    }
+
+    @Test fun exactBalanceStartsRetryAndLeavesZero() {
+        assertEquals(0, startAdventureRetry(30))
+        assertTrue(adventureRetryQuote(30).canAfford)
     }
 }

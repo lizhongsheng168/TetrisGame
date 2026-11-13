@@ -37,6 +37,53 @@ fun adventureStars(linesCleared: Int, moveCount: Int, config: LevelConfig): Int 
     }
 }
 
+/** 冒险失败或堆到顶后，原地再试一次的金币价格。无尽模式不收费。 */
+const val ADVENTURE_RETRY_COST = 30
+
+data class AdventureRetryQuote(
+    val cost: Int,
+    val balance: Int,
+    val canAfford: Boolean,
+    val shortfall: Int
+)
+
+/** 报价只读余额，不扣钱。余额不足时 canAfford 为 false。 */
+fun adventureRetryQuote(balance: Int, cost: Int = ADVENTURE_RETRY_COST): AdventureRetryQuote {
+    val safeBalance = balance.coerceAtLeast(0)
+    val safeCost = cost.coerceAtLeast(1)
+    val shortfall = (safeCost - safeBalance).coerceAtLeast(0)
+    return AdventureRetryQuote(
+        cost = safeCost,
+        balance = safeBalance,
+        canAfford = shortfall == 0,
+        shortfall = shortfall
+    )
+}
+
+/**
+ * 只有再试一次真正开始时才扣费。
+ * 余额够则返回扣完后的余额，不够返回 null，调用方不得重开。
+ */
+fun startAdventureRetry(balance: Int, cost: Int = ADVENTURE_RETRY_COST): Int? {
+    val quote = adventureRetryQuote(balance, cost)
+    if (!quote.canAfford) return null
+    return quote.balance - quote.cost
+}
+
+fun adventureRetryPriceLine(balance: Int, cost: Int = ADVENTURE_RETRY_COST): String {
+    val quote = adventureRetryQuote(balance, cost)
+    return if (quote.canAfford) {
+        "再试一次需要 ${quote.cost} 金币，当前 ${quote.balance} 金币"
+    } else {
+        "再试一次需要 ${quote.cost} 金币，当前只有 ${quote.balance} 金币，还差 ${quote.shortfall} 金币"
+    }
+}
+
+fun adventureRetryButtonLabel(balance: Int, cost: Int = ADVENTURE_RETRY_COST): String {
+    val quote = adventureRetryQuote(balance, cost)
+    return if (quote.canAfford) "${quote.cost} 金币再试一次" else "金币不足"
+}
+
 fun adventureStarHint(config: LevelConfig?, compact: Boolean = false): String {
     val moveLimited = config != null && config.moveLimit > 0
     return when {
