@@ -28,6 +28,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.tetris.game.data.SaveManager
+import com.tetris.game.engine.AdventureWorlds
 import com.tetris.game.ui.components.ParallaxBackground
 import com.tetris.game.ui.theme.LocalAppTheme
 
@@ -46,24 +47,16 @@ fun AdventureLevelScreen(
     var worldIndex by remember { mutableIntStateOf(0) }
     var snappedWorld by remember { mutableStateOf(false) }
     var lockHint by remember { mutableStateOf<String?>(null) }
+    val worlds = AdventureWorlds.all
     LaunchedEffect(currentLevel) {
         if (!snappedWorld && currentLevel > 1) {
-            worldIndex = when {
-                currentLevel > 150 -> 3
-                currentLevel > 100 -> 2
-                currentLevel > 50 -> 1
-                else -> 0
-            }
+            worldIndex = worlds.indexOf(AdventureWorlds.of(currentLevel)).coerceAtLeast(0)
             snappedWorld = true
         }
     }
-    val worlds = listOf(
-        "世界一" to (1..50),
-        "世界二" to (51..100),
-        "世界三" to (101..150),
-        "世界四" to (151..200)
-    )
-    val (worldName, worldRange) = worlds[worldIndex]
+    val world = worlds[worldIndex]
+    val worldName = world.name
+    val worldRange = world.range
 
     BackHandler(onBack = onBack)
 
@@ -101,7 +94,8 @@ fun AdventureLevelScreen(
                     .padding(horizontal = 16.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                worlds.forEachIndexed { index, (name, _) ->
+                worlds.forEachIndexed { index, entry ->
+                    val name = entry.name
                     Surface(
                         shape = RoundedCornerShape(12.dp),
                         color = if (index == worldIndex) theme.primaryAccent else theme.boardBackground,
@@ -137,15 +131,14 @@ fun AdventureLevelScreen(
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
                 textAlign = TextAlign.Center
             )
-            if (!worldLocked) {
-                Text(
-                    text = "过关至少 1 星，连消或省下步数可以到 3 星",
-                    color = theme.textMuted,
-                    fontSize = 11.sp,
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
-                    textAlign = TextAlign.Center
-                )
-            }
+            Text(
+                text = world.rule,
+                color = theme.textSecondary,
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+                textAlign = TextAlign.Center
+            )
             if (lockHint != null) {
                 Text(
                     text = lockHint!!,

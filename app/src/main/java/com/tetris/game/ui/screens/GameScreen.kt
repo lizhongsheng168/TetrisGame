@@ -453,6 +453,16 @@ fun GameScreen(
                     onExit()
                 }
             )
+            if (mode == GameMode.ADVENTURE) {
+                Text(
+                    text = AdventureWorlds.of(levelId).rule,
+                    color = theme.textSecondary,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 2.dp)
+                )
+            }
 
             Row(
                 modifier = Modifier

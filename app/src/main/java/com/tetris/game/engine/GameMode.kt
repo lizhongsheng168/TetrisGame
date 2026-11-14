@@ -94,42 +94,71 @@ fun adventureStarHint(config: LevelConfig?, compact: Boolean = false): String {
     }
 }
 
-/** 内置冒险关卡（V1.0：200 关，这里定义前 15 关 + 程序化生成其余） */
+/** 四个世界。前 15 关仍是手写教学，16 关起按所在世界生成，不再共用同一种棋盘。 */
+data class AdventureWorld(
+    val name: String,
+    val range: IntRange,
+    val rule: String
+)
+
+object AdventureWorlds {
+    val all = listOf(
+        AdventureWorld("世界一", 1..50, "前 15 关只练消行，第 16 关起底部留一道缺口"),
+        AdventureWorld("世界二", 51..100, "步数用完前消满目标，剩得越多星越高"),
+        AdventureWorld("世界三", 101..150, "底部叠着残垣，补上缺口整行才会消掉"),
+        AdventureWorld("世界四", 151..200, "残垣和步数一起算，两边都要顾上")
+    )
+
+    fun of(levelId: Int): AdventureWorld = all.firstOrNull { levelId in it.range } ?: all.first()
+}
+
+/** 内置冒险关卡（V1.0：200 关，前 15 关手写，其余按世界规则生成） */
 object LevelCatalog {
     fun getLevel(id: Int): LevelConfig {
-        // 前 15 关手写定义（教学循序渐进）
-        if (id in 1..15) {
-            return handcraftedLevels[id - 1]
+        if (id in 1..15) return handcraftedLevels[id - 1]
+        val world = AdventureWorlds.of(id)
+        val goal = generatedGoal(id)
+        return when (world.range.first) {
+            1 -> LevelConfig(id, "第 $id 关", goal, obstacleRows = gapRow(id))
+            51 -> LevelConfig(id, "第 $id 关", goal, moveLimit = moveBudget(goal, tight = false))
+            101 -> LevelConfig(id, "第 $id 关", goal, obstacleRows = ruinRows(id, rows = 2))
+            else -> LevelConfig(
+                id,
+                "第 $id 关",
+                goal,
+                moveLimit = moveBudget(goal, tight = true),
+                obstacleRows = ruinRows(id, rows = 3)
+            )
         }
-        // 其余程序化生成：目标行数随关卡递增
-        val goal = when {
-            id <= 30 -> 6 + (id - 15)
-            id <= 60 -> 15 + (id - 30) / 2
-            id <= 100 -> 25 + (id - 60) / 3
-            else -> 35 + (id - 100) / 4
-        }
-        // 高关卡加入障碍物（从第 50 关起）
-        val obstacles = if (id >= 50 && id % 5 == 0) {
-            generateObstacles(id)
-        } else emptyList()
-        return LevelConfig(
-            id = id,
-            name = "第 $id 关",
-            goalLines = minOf(goal, 100),
-            obstacleRows = obstacles
-        )
     }
 
-    private fun generateObstacles(id: Int): List<List<Int?>> {
-        // 底部 1-2 行随机障碍
-        val rows = mutableListOf<List<Int?>>()
-        repeat((id / 30).coerceAtMost(2)) { rowIdx ->
-            val row = (0 until 10).map { col ->
-                if (col % 3 == rowIdx % 3) -1 else null
-            }
-            rows.add(row)
+    private fun generatedGoal(id: Int): Int {
+        val raw = when {
+            id <= 50 -> 8 + (id - 16) / 3
+            id <= 100 -> 12 + (id - 51) / 4
+            id <= 150 -> 14 + (id - 101) / 5
+            else -> 16 + (id - 151) / 5
         }
-        return rows
+        return raw.coerceIn(8, 28)
+    }
+
+    /** 宽松大约每行 4 步，夹击大约每行 3 步。预算必须大于目标，否则还没消完就失败。 */
+    private fun moveBudget(goal: Int, tight: Boolean): Int = goal * if (tight) 3 else 4
+
+    /** 世界一：底部一行，只留一个会随关卡移动的缺口。 */
+    private fun gapRow(id: Int): List<List<Int?>> {
+        val hole = (id * 3) % BOARD_WIDTH
+        return listOf(List(BOARD_WIDTH) { col -> if (col == hole) null else -1 })
+    }
+
+    /** 世界三、四：多行残垣，每行两个错开的缺口，避免整行在开局就是满的。 */
+    private fun ruinRows(id: Int, rows: Int): List<List<Int?>> {
+        val shift = id % BOARD_WIDTH
+        return List(rows) { rowIdx ->
+            val hole = (shift + rowIdx * 2) % BOARD_WIDTH
+            val hole2 = (hole + 5) % BOARD_WIDTH
+            List(BOARD_WIDTH) { col -> if (col == hole || col == hole2) null else -1 }
+        }
     }
 
     private val handcraftedLevels = listOf(
