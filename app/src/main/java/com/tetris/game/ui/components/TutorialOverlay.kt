@@ -12,6 +12,7 @@ import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.SwapHoriz
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -60,6 +61,11 @@ fun TutorialOverlay(
                 title = "旋转方块",
                 desc = "点 旋转 让方块顺时针转 90°\n卡住也能贴墙转（踢墙）",
                 icon = Icons.Filled.Refresh
+            ),
+            TutorialStep(
+                title = "暂存方块",
+                desc = "点 暂存 把当前方块换下来\n每落下一颗才能再暂存一次",
+                icon = Icons.Filled.SwapHoriz
             ),
             TutorialStep(
                 title = "下落",

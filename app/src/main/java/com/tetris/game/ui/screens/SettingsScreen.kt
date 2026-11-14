@@ -282,7 +282,7 @@ fun SettingsScreen(
                         }
                         Column(modifier = Modifier.weight(1f).padding(horizontal = 12.dp)) {
                             Text("新手引导", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = theme.textPrimary)
-                            Text("重新查看 旋转/加速/幽灵块 说明", fontSize = 11.sp, color = theme.textSecondary, modifier = Modifier.padding(top = 2.dp))
+                            Text("重新查看 旋转/暂存/下落/幽灵块 说明", fontSize = 11.sp, color = theme.textSecondary, modifier = Modifier.padding(top = 2.dp))
                         }
                         Button(
                             onClick = {
@@ -297,7 +297,7 @@ fun SettingsScreen(
                 }
                 if (tutorialHint) {
                     Text(
-                        "下一局开局时会重新播放左右移动、旋转和下落说明。",
+                        "下一局开局时会重新播放左右移动、旋转、暂存和下落说明。",
                         fontSize = 12.sp,
                         color = theme.primaryAccentStrong,
                         modifier = Modifier.padding(horizontal = 6.dp)
