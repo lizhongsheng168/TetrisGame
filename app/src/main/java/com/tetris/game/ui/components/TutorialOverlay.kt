@@ -2,6 +2,8 @@ package com.tetris.game.ui.components
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -10,6 +12,7 @@ import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.SwapHoriz
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -60,8 +63,13 @@ fun TutorialOverlay(
                 icon = Icons.Filled.Refresh
             ),
             TutorialStep(
-                title = "加速下落",
-                desc = "长按 加速 让方块快速下落\n松手即停，用于精准落位",
+                title = "暂存方块",
+                desc = "点 暂存 把当前方块换下来\n每落下一颗才能再暂存一次",
+                icon = Icons.Filled.SwapHoriz
+            ),
+            TutorialStep(
+                title = "下落",
+                desc = "点一下「下落」立刻落到底\n按住则一格格下落，方便对位",
                 icon = Icons.Filled.KeyboardArrowDown
             ),
             TutorialStep(
@@ -75,7 +83,11 @@ fun TutorialOverlay(
     val cur = steps[step.coerceIn(0, total - 1)]
 
     Box(
-        modifier = Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.62f)),
+        modifier = Modifier
+            .fillMaxSize()
+            .windowInsetsPadding(WindowInsets.safeDrawing)
+            .background(Color.Black.copy(alpha = 0.62f))
+            .clickable(indication = null, interactionSource = remember { MutableInteractionSource() }) {},
         contentAlignment = Alignment.Center
     ) {
         Surface(

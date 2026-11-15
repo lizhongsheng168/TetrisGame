@@ -4,6 +4,8 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Palette
@@ -15,6 +17,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.tetris.game.data.SaveManager
@@ -37,6 +40,7 @@ fun HomeScreen(
     val theme = LocalAppTheme.current
     val highScore by saveManager.highScore.collectAsState(initial = 0)
     val maxLevel by saveManager.maxLevel.collectAsState(initial = 0)
+    val currentLevel by saveManager.currentLevel.collectAsState(initial = 1)
     val coins by saveManager.coins.collectAsState(initial = 0)
     val themeId by saveManager.themeId.collectAsState(initial = theme.id.id)
     val scope = rememberCoroutineScope()
@@ -46,7 +50,10 @@ fun HomeScreen(
         ParallaxBackground(theme = theme, driftEnabled = true)
         // 顶部：主题 + 设置（避开状态栏：insets + 额外下移，不与顶部图标重合；与对局喇叭同高对齐）
         Row(
-            modifier = Modifier.fillMaxWidth().windowInsetsPadding(WindowInsets.statusBars).padding(horizontal = 16.dp).padding(top = 12.dp).padding(vertical = 6.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal))
+                .padding(horizontal = 16.dp, vertical = 8.dp),
             horizontalArrangement = Arrangement.End,
             verticalAlignment = Alignment.CenterVertically
         ) {
@@ -78,8 +85,10 @@ fun HomeScreen(
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(horizontal = 24.dp)
-                .padding(top = 56.dp, bottom = 24.dp),
+                .windowInsetsPadding(WindowInsets.safeDrawing)
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 20.dp)
+                .padding(top = 56.dp, bottom = 16.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center
         ) {
@@ -132,20 +141,29 @@ fun HomeScreen(
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Row(
-                    modifier = Modifier.fillMaxWidth().padding(16.dp),
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 14.dp),
                     horizontalArrangement = Arrangement.SpaceEvenly
                 ) {
-                    StatItem("最高分", highScore.toString())
-                    StatItem("最高关卡", if (maxLevel > 0) ("第" + maxLevel + "关") else "未通关")
-                    StatItem("金币", coins.toString())
+                    StatItem("最高分", highScore.toString(), Modifier.weight(1f))
+                    StatItem("已通关", if (maxLevel > 0) ("第" + maxLevel + "关") else "未通关", Modifier.weight(1f))
+                    StatItem("闯关金币", coins.toString(), Modifier.weight(1f))
                 }
             }
 
             Spacer(modifier = Modifier.height(40.dp))
 
-            MainMenuButton(title = "经典无尽", subtitle = "无体力无限制 · 挑战高分", accentColor = theme.primaryAccent, onClick = onPlayEndless)
+            MainMenuButton(title = "经典无尽", subtitle = "一直玩下去，冲击最高分", accentColor = theme.primaryAccent, onClick = onPlayEndless)
             Spacer(modifier = Modifier.height(16.dp))
-            MainMenuButton(title = "冒险闯关", subtitle = "500+ 主题关卡 · 三星挑战", accentColor = theme.secondaryAccent, onClick = onPlayAdventure)
+            MainMenuButton(
+                title = "冒险闯关",
+                subtitle = when {
+                    maxLevel >= 200 -> "200 关都已解锁，可以回头刷星"
+                    currentLevel <= 1 -> "200 关地图 · 从第 1 关开始"
+                    else -> "200 关地图 · 下一关是第 $currentLevel 关"
+                },
+                accentColor = theme.secondaryAccent,
+                onClick = onPlayAdventure
+            )
 
             Spacer(modifier = Modifier.height(28.dp))
             Text(text = "轻休闲 · 强竞技 · 碎片化游玩", fontSize = 12.sp, color = theme.textSecondary)
@@ -164,11 +182,11 @@ fun HomeScreen(
 }
 
 @Composable
-private fun StatItem(label: String, value: String) {
+private fun StatItem(label: String, value: String, modifier: Modifier = Modifier) {
     val theme = LocalAppTheme.current
-    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        Text(text = value, fontSize = 20.sp, fontWeight = FontWeight.Bold, color = theme.textPrimary)
-        Text(text = label, fontSize = 12.sp, color = theme.textSecondary, modifier = Modifier.padding(top = 4.dp))
+    Column(modifier = modifier, horizontalAlignment = Alignment.CenterHorizontally) {
+        Text(text = value, fontSize = 16.sp, fontWeight = FontWeight.Bold, color = theme.textPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        Text(text = label, fontSize = 12.sp, color = theme.textSecondary, modifier = Modifier.padding(top = 4.dp), maxLines = 1, overflow = TextOverflow.Ellipsis)
     }
 }
 
@@ -180,11 +198,11 @@ private fun MainMenuButton(title: String, subtitle: String, accentColor: android
         color = theme.boardBackground,
         modifier = Modifier.fillMaxWidth().clickable(onClick = onClick)
     ) {
-        Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 20.dp), verticalAlignment = Alignment.CenterVertically) {
+        Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 18.dp), verticalAlignment = Alignment.CenterVertically) {
             Box(modifier = Modifier.size(12.dp).background(accentColor, RoundedCornerShape(6.dp)))
-            Column(modifier = Modifier.padding(start = 16.dp)) {
-                Text(text = title, fontSize = 22.sp, fontWeight = FontWeight.Bold, color = theme.textPrimary)
-                Text(text = subtitle, fontSize = 13.sp, color = theme.textSecondary, modifier = Modifier.padding(top = 4.dp))
+            Column(modifier = Modifier.weight(1f).padding(start = 16.dp)) {
+                Text(text = title, fontSize = 22.sp, fontWeight = FontWeight.Bold, color = theme.textPrimary, maxLines = 1)
+                Text(text = subtitle, fontSize = 13.sp, color = theme.textSecondary, modifier = Modifier.padding(top = 4.dp), lineHeight = 18.sp)
             }
         }
     }

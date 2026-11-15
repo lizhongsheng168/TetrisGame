@@ -138,7 +138,13 @@ fun TetrisApp() {
                 isLicensed = isLicensed,
                 trialRemain = (SaveManager.TRIAL_LIMIT - trialPlays).coerceAtLeast(0),
                 onPlayEndless = { gateOrPlay(Screen.Play(GameMode.ENDLESS)) },
-                onPlayAdventure = { gateOrPlay(Screen.Play(GameMode.ADVENTURE, 0)) },
+                onPlayAdventure = {
+                    if (isLicensed || canTrial) currentScreen = Screen.Adventure
+                    else {
+                        pendingPlay = null
+                        showTrialGate = true
+                    }
+                },
                 onOpenSettings = { currentScreen = Screen.Settings },
                 onActivate = {
                     pendingPlay = null
@@ -174,6 +180,16 @@ fun TetrisApp() {
                 },
                 onExit = {
                     currentScreen = if (screen.mode == GameMode.ADVENTURE) Screen.Adventure else Screen.Home
+                },
+                onNextLevel = { nextId ->
+                    val next = Screen.Play(GameMode.ADVENTURE, nextId)
+                    if (isLicensed || canTrial) {
+                        currentScreen = next
+                    } else {
+                        pendingPlay = next
+                        showTrialGate = true
+                        currentScreen = Screen.Adventure
+                    }
                 },
                 onRequireLicense = {
                     pendingPlay = screen

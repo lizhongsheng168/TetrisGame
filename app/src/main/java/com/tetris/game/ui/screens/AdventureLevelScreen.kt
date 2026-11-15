@@ -1,6 +1,7 @@
 package com.tetris.game.ui.screens
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.grid.GridCells
@@ -9,11 +10,14 @@ import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.activity.compose.BackHandler
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -24,6 +28,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.tetris.game.data.SaveManager
+import com.tetris.game.engine.AdventureWorlds
 import com.tetris.game.ui.components.ParallaxBackground
 import com.tetris.game.ui.theme.LocalAppTheme
 
@@ -40,13 +45,20 @@ fun AdventureLevelScreen(
     val coins by saveManager.coins.collectAsState(initial = 0)
 
     var worldIndex by remember { mutableIntStateOf(0) }
-    val worlds = listOf(
-        "世界一" to (1..50),
-        "世界二" to (51..100),
-        "世界三" to (101..150),
-        "世界四" to (151..200)
-    )
-    val (worldName, worldRange) = worlds[worldIndex]
+    var snappedWorld by remember { mutableStateOf(false) }
+    var lockHint by remember { mutableStateOf<String?>(null) }
+    val worlds = AdventureWorlds.all
+    LaunchedEffect(currentLevel) {
+        if (!snappedWorld && currentLevel > 1) {
+            worldIndex = worlds.indexOf(AdventureWorlds.of(currentLevel)).coerceAtLeast(0)
+            snappedWorld = true
+        }
+    }
+    val world = worlds[worldIndex]
+    val worldName = world.name
+    val worldRange = world.range
+
+    BackHandler(onBack = onBack)
 
     Box(modifier = Modifier.fillMaxSize()) {
         // 棋盘外背景：微渐变 + 星点/网格视差，按选中世界染一点主题色
@@ -54,11 +66,12 @@ fun AdventureLevelScreen(
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .windowInsetsPadding(WindowInsets.statusBars)
-                .padding(top = 6.dp)
+                .windowInsetsPadding(WindowInsets.safeDrawing)
+                .padding(top = 4.dp)
         ) {
             TopAppBar(
-                title = { Text("冒险闯关", color = theme.textPrimary, fontWeight = FontWeight.Bold) },
+                windowInsets = WindowInsets(0, 0, 0, 0),
+                title = { Text("冒险闯关", color = theme.textPrimary, fontWeight = FontWeight.Bold, maxLines = 1) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回", tint = theme.textPrimary)
@@ -82,13 +95,17 @@ fun AdventureLevelScreen(
                     .padding(horizontal = 16.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                worlds.forEachIndexed { index, (name, _) ->
+                worlds.forEachIndexed { index, entry ->
+                    val name = entry.name
                     Surface(
                         shape = RoundedCornerShape(12.dp),
                         color = if (index == worldIndex) theme.primaryAccent else theme.boardBackground,
                         modifier = Modifier
                             .weight(1f)
-                            .clickable { worldIndex = index }
+                            .clickable {
+                                worldIndex = index
+                                lockHint = null
+                            }
                     ) {
                         Text(
                             text = name,
@@ -96,20 +113,45 @@ fun AdventureLevelScreen(
                             fontWeight = FontWeight.Bold,
                             fontSize = 13.sp,
                             textAlign = TextAlign.Center,
-                            modifier = Modifier.padding(vertical = 8.dp).fillMaxWidth()
+                            modifier = Modifier.padding(vertical = 8.dp).fillMaxWidth(),
+                            maxLines = 1
                         )
                     }
                 }
             }
 
             Spacer(modifier = Modifier.height(4.dp))
+            val worldLocked = worldRange.first > currentLevel
             Text(
-                text = worldName + " · " + theme.name,
-                color = theme.textMuted,
+                text = if (worldLocked) {
+                    "通过第 ${worldRange.first - 1} 关后解锁$worldName"
+                } else {
+                    "第 ${worldRange.first}–${worldRange.last} 关 · 下一关是第 $currentLevel 关"
+                },
+                color = if (worldLocked) theme.secondaryAccent else theme.textMuted,
                 fontSize = 11.sp,
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp),
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
                 textAlign = TextAlign.Center
             )
+            Text(
+                text = world.rule,
+                color = theme.textSecondary,
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+                textAlign = TextAlign.Center,
+                lineHeight = 16.sp
+            )
+            if (lockHint != null) {
+                Text(
+                    text = lockHint!!,
+                    color = theme.dangerRed,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 2.dp),
+                    textAlign = TextAlign.Center
+                )
+            }
 
             LazyVerticalGrid(
                 columns = GridCells.Fixed(5),
@@ -123,7 +165,15 @@ fun AdventureLevelScreen(
                         levelId = levelId,
                         stars = starLevels[levelId] ?: 0,
                         unlocked = levelId <= currentLevel,
-                        onClick = { if (levelId <= currentLevel) onPlayLevel(levelId) }
+                        isCurrent = levelId == currentLevel,
+                        onClick = {
+                            if (levelId <= currentLevel) {
+                                lockHint = null
+                                onPlayLevel(levelId)
+                            } else {
+                                lockHint = "先通过第 ${levelId - 1} 关，才能挑战第 $levelId 关"
+                            }
+                        }
                     )
                 }
             }
@@ -136,6 +186,7 @@ private fun LevelCell(
     levelId: Int,
     stars: Int,
     unlocked: Boolean,
+    isCurrent: Boolean,
     onClick: () -> Unit
 ) {
     val theme = LocalAppTheme.current
@@ -150,16 +201,23 @@ private fun LevelCell(
         modifier = Modifier
             .aspectRatio(1f)
             .background(bg, RoundedCornerShape(12.dp))
-            .clickable(enabled = unlocked, onClick = onClick),
+            .then(
+                if (isCurrent && unlocked) Modifier.border(2.dp, theme.primaryAccentStrong, RoundedCornerShape(12.dp))
+                else Modifier
+            )
+            .clickable(onClick = onClick),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
         Text(
             text = if (unlocked) "$levelId" else "🔒",
-            fontSize = 18.sp,
+            fontSize = if (isCurrent && unlocked) 16.sp else 18.sp,
             fontWeight = FontWeight.Bold,
             color = if (unlocked) theme.textPrimary else theme.textSecondary
         )
+        if (isCurrent && unlocked && stars == 0) {
+            Text(text = "当前", fontSize = 9.sp, color = theme.primaryAccentStrong, fontWeight = FontWeight.Bold)
+        }
         if (stars > 0) {
             Text(
                 text = "★".repeat(stars),
