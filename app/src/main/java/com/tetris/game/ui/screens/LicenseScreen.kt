@@ -63,9 +63,9 @@ fun LicenseScreen(
         modifier = Modifier
             .fillMaxSize()
             .background(theme.gameBackground)
-            .windowInsetsPadding(WindowInsets.systemBars)
+            .windowInsetsPadding(WindowInsets.safeDrawing)
             .verticalScroll(rememberScrollState())
-            .padding(20.dp),
+            .padding(horizontal = 20.dp, vertical = 12.dp),
         contentAlignment = Alignment.Center
     ) {
         Column(

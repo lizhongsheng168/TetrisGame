@@ -85,6 +85,7 @@ fun TutorialOverlay(
     Box(
         modifier = Modifier
             .fillMaxSize()
+            .windowInsetsPadding(WindowInsets.safeDrawing)
             .background(Color.Black.copy(alpha = 0.62f))
             .clickable(indication = null, interactionSource = remember { MutableInteractionSource() }) {},
         contentAlignment = Alignment.Center

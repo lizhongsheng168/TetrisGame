@@ -52,7 +52,10 @@ fun SettingsScreen(
         ParallaxBackground(theme = theme, driftEnabled = true)
         Column(modifier = Modifier.fillMaxSize()) {
             Row(
-                modifier = Modifier.fillMaxWidth().windowInsetsPadding(WindowInsets.statusBars).padding(horizontal = 12.dp).padding(top = 12.dp).padding(vertical = 10.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal))
+                    .padding(horizontal = 12.dp, vertical = 8.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Surface(shape = CircleShape, color = theme.boardCardBackground, border = BorderStroke(1.dp, theme.boardBorder), modifier = Modifier.size(36.dp)) {
@@ -67,7 +70,11 @@ fun SettingsScreen(
             }
 
             Column(
-                modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).windowInsetsPadding(WindowInsets.navigationBars).padding(horizontal = 16.dp, vertical = 8.dp),
+                modifier = Modifier
+                    .fillMaxSize()
+                    .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Bottom + WindowInsetsSides.Horizontal))
+                    .verticalScroll(rememberScrollState())
+                    .padding(horizontal = 16.dp, vertical = 8.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 Text("声音与震动", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = theme.textMuted, letterSpacing = 1.2.sp, modifier = Modifier.padding(top = 4.dp, start = 4.dp))

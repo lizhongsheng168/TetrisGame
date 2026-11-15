@@ -17,6 +17,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.tetris.game.data.SaveManager
@@ -49,7 +50,10 @@ fun HomeScreen(
         ParallaxBackground(theme = theme, driftEnabled = true)
         // 顶部：主题 + 设置（避开状态栏：insets + 额外下移，不与顶部图标重合；与对局喇叭同高对齐）
         Row(
-            modifier = Modifier.fillMaxWidth().windowInsetsPadding(WindowInsets.statusBars).padding(horizontal = 16.dp).padding(top = 12.dp).padding(vertical = 6.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal))
+                .padding(horizontal = 16.dp, vertical = 8.dp),
             horizontalArrangement = Arrangement.End,
             verticalAlignment = Alignment.CenterVertically
         ) {
@@ -81,10 +85,10 @@ fun HomeScreen(
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .windowInsetsPadding(WindowInsets.systemBars)
+                .windowInsetsPadding(WindowInsets.safeDrawing)
                 .verticalScroll(rememberScrollState())
-                .padding(horizontal = 24.dp)
-                .padding(top = 64.dp, bottom = 16.dp),
+                .padding(horizontal = 20.dp)
+                .padding(top = 56.dp, bottom = 16.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center
         ) {
@@ -137,12 +141,12 @@ fun HomeScreen(
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Row(
-                    modifier = Modifier.fillMaxWidth().padding(16.dp),
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 14.dp),
                     horizontalArrangement = Arrangement.SpaceEvenly
                 ) {
-                    StatItem("最高分", highScore.toString())
-                    StatItem("已通关", if (maxLevel > 0) ("第" + maxLevel + "关") else "未通关")
-                    StatItem("闯关金币", coins.toString())
+                    StatItem("最高分", highScore.toString(), Modifier.weight(1f))
+                    StatItem("已通关", if (maxLevel > 0) ("第" + maxLevel + "关") else "未通关", Modifier.weight(1f))
+                    StatItem("闯关金币", coins.toString(), Modifier.weight(1f))
                 }
             }
 
@@ -178,11 +182,11 @@ fun HomeScreen(
 }
 
 @Composable
-private fun StatItem(label: String, value: String) {
+private fun StatItem(label: String, value: String, modifier: Modifier = Modifier) {
     val theme = LocalAppTheme.current
-    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        Text(text = value, fontSize = 20.sp, fontWeight = FontWeight.Bold, color = theme.textPrimary)
-        Text(text = label, fontSize = 12.sp, color = theme.textSecondary, modifier = Modifier.padding(top = 4.dp))
+    Column(modifier = modifier, horizontalAlignment = Alignment.CenterHorizontally) {
+        Text(text = value, fontSize = 16.sp, fontWeight = FontWeight.Bold, color = theme.textPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        Text(text = label, fontSize = 12.sp, color = theme.textSecondary, modifier = Modifier.padding(top = 4.dp), maxLines = 1, overflow = TextOverflow.Ellipsis)
     }
 }
 
@@ -194,11 +198,11 @@ private fun MainMenuButton(title: String, subtitle: String, accentColor: android
         color = theme.boardBackground,
         modifier = Modifier.fillMaxWidth().clickable(onClick = onClick)
     ) {
-        Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 20.dp), verticalAlignment = Alignment.CenterVertically) {
+        Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 18.dp), verticalAlignment = Alignment.CenterVertically) {
             Box(modifier = Modifier.size(12.dp).background(accentColor, RoundedCornerShape(6.dp)))
-            Column(modifier = Modifier.padding(start = 16.dp)) {
-                Text(text = title, fontSize = 22.sp, fontWeight = FontWeight.Bold, color = theme.textPrimary)
-                Text(text = subtitle, fontSize = 13.sp, color = theme.textSecondary, modifier = Modifier.padding(top = 4.dp))
+            Column(modifier = Modifier.weight(1f).padding(start = 16.dp)) {
+                Text(text = title, fontSize = 22.sp, fontWeight = FontWeight.Bold, color = theme.textPrimary, maxLines = 1)
+                Text(text = subtitle, fontSize = 13.sp, color = theme.textSecondary, modifier = Modifier.padding(top = 4.dp), lineHeight = 18.sp)
             }
         }
     }

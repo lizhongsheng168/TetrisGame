@@ -66,11 +66,12 @@ fun AdventureLevelScreen(
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .windowInsetsPadding(WindowInsets.systemBars)
-                .padding(top = 6.dp)
+                .windowInsetsPadding(WindowInsets.safeDrawing)
+                .padding(top = 4.dp)
         ) {
             TopAppBar(
-                title = { Text("冒险闯关", color = theme.textPrimary, fontWeight = FontWeight.Bold) },
+                windowInsets = WindowInsets(0, 0, 0, 0),
+                title = { Text("冒险闯关", color = theme.textPrimary, fontWeight = FontWeight.Bold, maxLines = 1) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回", tint = theme.textPrimary)
@@ -112,7 +113,8 @@ fun AdventureLevelScreen(
                             fontWeight = FontWeight.Bold,
                             fontSize = 13.sp,
                             textAlign = TextAlign.Center,
-                            modifier = Modifier.padding(vertical = 8.dp).fillMaxWidth()
+                            modifier = Modifier.padding(vertical = 8.dp).fillMaxWidth(),
+                            maxLines = 1
                         )
                     }
                 }
@@ -137,7 +139,8 @@ fun AdventureLevelScreen(
                 fontSize = 12.sp,
                 fontWeight = FontWeight.Bold,
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
-                textAlign = TextAlign.Center
+                textAlign = TextAlign.Center,
+                lineHeight = 16.sp
             )
             if (lockHint != null) {
                 Text(

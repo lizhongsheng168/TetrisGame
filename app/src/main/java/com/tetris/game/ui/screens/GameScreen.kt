@@ -13,6 +13,8 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -417,8 +419,8 @@ fun GameScreen(
             driftEnabled = true
         )
 
-        Column(modifier = Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.navigationBars)) {
-            Spacer(modifier = Modifier.windowInsetsPadding(WindowInsets.statusBars).height(8.dp))
+        Column(modifier = Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing)) {
+            Spacer(modifier = Modifier.height(4.dp))
             GameTopBar(
                 mode = mode,
                 levelId = levelId,
@@ -628,6 +630,7 @@ fun GameScreen(
             Box(
                 modifier = Modifier
                     .fillMaxSize()
+                    .windowInsetsPadding(WindowInsets.safeDrawing)
                     .background(Color.Black.copy(alpha = 0.55f))
                     .clickable(indication = null, interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }) {},
                 contentAlignment = Alignment.Center
@@ -637,21 +640,22 @@ fun GameScreen(
                     color = theme.boardCardBackground,
                     border = BorderStroke(1.dp, theme.boardBorderGlow.copy(alpha = 0.6f)),
                     shadowElevation = 16.dp,
-                    modifier = Modifier.padding(28.dp)
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp).widthIn(max = 420.dp)
                 ) {
-                    Column(modifier = Modifier.padding(horizontal = 24.dp, vertical = 22.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                    Column(modifier = Modifier.padding(horizontal = 20.dp, vertical = 18.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                         Text("发现未完成的对局", fontSize = 18.sp, fontWeight = FontWeight.Black, color = theme.textPrimary, textAlign = TextAlign.Center)
-                        Text("是否从上次中断处继续？", fontSize = 13.sp, color = theme.textSecondary, modifier = Modifier.padding(top = 6.dp), textAlign = TextAlign.Center)
-                        Spacer(Modifier.height(18.dp))
-                        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        Text("是否从上次中断处继续？", fontSize = 13.sp, color = theme.textSecondary, modifier = Modifier.padding(top = 8.dp), textAlign = TextAlign.Center)
+                        Spacer(Modifier.height(16.dp))
+                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             OutlinedButton(
                                 onClick = {
                                     scope.launch(Dispatchers.IO) { saveManager.clearSnapshot() }
                                     showResumeDialog = false
                                     resumePlay()
                                 },
-                                shape = RoundedCornerShape(12.dp)
-                            ) { Text("重新开始", color = theme.textPrimary) }
+                                shape = RoundedCornerShape(12.dp),
+                                modifier = Modifier.weight(1f)
+                            ) { Text("重新开始", color = theme.textPrimary, maxLines = 1) }
                             Button(
                                 onClick = {
                                     val json = resumePayload ?: return@Button
@@ -662,8 +666,9 @@ fun GameScreen(
                                     resumePlay()
                                 },
                                 shape = RoundedCornerShape(12.dp),
+                                modifier = Modifier.weight(1f),
                                 colors = ButtonDefaults.buttonColors(containerColor = theme.primaryAccentStrong)
-                            ) { Text("继续游戏", color = Color.White, fontWeight = FontWeight.Bold) }
+                            ) { Text("继续游戏", color = Color.White, fontWeight = FontWeight.Bold, maxLines = 1) }
                         }
                     }
                 }
@@ -922,7 +927,7 @@ private fun AdventureGoalPanel(linesCleared: Int, moveCount: Int, config: LevelC
 }
 
 @Composable
-private fun OverlayDialog(
+internal fun OverlayDialog(
     title: String,
     subTitle: String? = null,
     buttonText: String,
@@ -932,9 +937,10 @@ private fun OverlayDialog(
     onSecondary: (() -> Unit)? = null
 ) {
     val theme = LocalAppTheme.current
-    Box(
+    BoxWithConstraints(
         modifier = Modifier
             .fillMaxSize()
+            .windowInsetsPadding(WindowInsets.safeDrawing)
             .background(Color.Black.copy(alpha = 0.55f))
             .clickable(indication = null, interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }) {},
         contentAlignment = Alignment.Center
@@ -944,27 +950,46 @@ private fun OverlayDialog(
             color = theme.boardCardBackground,
             border = BorderStroke(1.dp, theme.boardBorderGlow.copy(alpha = 0.6f)),
             shadowElevation = 16.dp,
-            modifier = Modifier.padding(28.dp)
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp)
+                .widthIn(max = 420.dp)
+                .heightIn(max = maxHeight)
         ) {
-            Column(modifier = Modifier.padding(horizontal = 28.dp, vertical = 26.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                Box(modifier = Modifier.size(48.dp).clip(CircleShape).background(Brush.linearGradient(listOf(theme.primaryAccentStrong.copy(alpha = 0.9f), theme.secondaryAccent.copy(alpha = 0.9f)))), contentAlignment = Alignment.Center) {
+            Column(
+                modifier = Modifier
+                    .verticalScroll(rememberScrollState())
+                    .padding(horizontal = 20.dp, vertical = 18.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Box(modifier = Modifier.size(44.dp).clip(CircleShape).background(Brush.linearGradient(listOf(theme.primaryAccentStrong.copy(alpha = 0.9f), theme.secondaryAccent.copy(alpha = 0.9f)))), contentAlignment = Alignment.Center) {
                     Icon(icon, contentDescription = null, tint = Color.White, modifier = Modifier.size(22.dp))
                 }
-                Spacer(modifier = Modifier.height(12.dp))
-                Text(text = title, fontSize = 22.sp, fontWeight = FontWeight.Black, color = theme.textPrimary, textAlign = TextAlign.Center)
+                Spacer(modifier = Modifier.height(10.dp))
+                Text(text = title, fontSize = 20.sp, fontWeight = FontWeight.Black, color = theme.textPrimary, textAlign = TextAlign.Center, maxLines = 2)
                 if (subTitle != null) {
-                    Text(text = subTitle, fontSize = 13.sp, color = theme.textSecondary, modifier = Modifier.padding(top = 6.dp), textAlign = TextAlign.Center, lineHeight = 18.sp)
+                    Text(
+                        text = subTitle,
+                        fontSize = 14.sp,
+                        color = theme.textSecondary,
+                        modifier = Modifier.fillMaxWidth().padding(top = 10.dp),
+                        textAlign = TextAlign.Center,
+                        lineHeight = 20.sp
+                    )
                 }
-                Spacer(modifier = Modifier.height(18.dp))
+                Spacer(modifier = Modifier.height(16.dp))
                 Button(
                     onClick = onAction,
+                    modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(12.dp),
                     colors = ButtonDefaults.buttonColors(containerColor = theme.primaryAccentStrong),
-                    contentPadding = PaddingValues(horizontal = 22.dp, vertical = 10.dp)
-                ) { Text(text = buttonText, fontSize = 14.sp, color = Color.White, fontWeight = FontWeight.Bold) }
+                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp)
+                ) {
+                    Text(text = buttonText, fontSize = 15.sp, color = Color.White, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center, maxLines = 2)
+                }
                 if (secondaryText != null && onSecondary != null) {
-                    TextButton(onClick = onSecondary, modifier = Modifier.padding(top = 6.dp)) {
-                        Text(secondaryText, fontSize = 13.sp, color = theme.textSecondary, fontWeight = FontWeight.Bold)
+                    TextButton(onClick = onSecondary, modifier = Modifier.fillMaxWidth().padding(top = 4.dp)) {
+                        Text(secondaryText, fontSize = 14.sp, color = theme.textSecondary, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center)
                     }
                 }
             }
@@ -983,50 +1008,51 @@ private fun dropRepeatMs(s: Int): Long = when (s.coerceIn(1, 5)) { 1 -> 38L; 2 -
 private fun dropInitialMs(s: Int): Long = when (s.coerceIn(1, 5)) { 1 -> 165L; 2 -> 140L; 3 -> 120L; 4 -> 95L; 5 -> 75L; else -> 120L }
 
 @Composable
-private fun ButtonControlArea(enabled: Boolean = true, hapticEnabled: Boolean, sensitivity: Int = 3, btnScale: Int = 100, btnSpacing: Int = 10, canHold: Boolean = true, onMoveLeft: () -> Unit, onMoveRight: () -> Unit, onRotate: () -> Unit, onHold: () -> Unit, onSoftDrop: () -> Unit, onHardDrop: () -> Unit) {
+internal fun ButtonControlArea(enabled: Boolean = true, hapticEnabled: Boolean, sensitivity: Int = 3, btnScale: Int = 100, btnSpacing: Int = 10, canHold: Boolean = true, onMoveLeft: () -> Unit, onMoveRight: () -> Unit, onRotate: () -> Unit, onHold: () -> Unit, onSoftDrop: () -> Unit, onHardDrop: () -> Unit) {
     val theme = LocalAppTheme.current
-    val cap = (64f * (btnScale / 100f)).dp
-    val sp = (btnSpacing.coerceAtMost(8)).dp
+    val height = (56f * (btnScale / 100f)).coerceIn(48f, 64f).dp
     Surface(
         shape = RoundedCornerShape(20.dp),
         color = theme.boardCardBackground.copy(alpha = 0.92f),
         border = BorderStroke(1.dp, theme.boardBorder.copy(alpha = 0.7f)),
         shadowElevation = 10.dp,
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 10.dp).graphicsLayer { alpha = if (enabled) 1f else 0.4f }
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 6.dp).graphicsLayer { alpha = if (enabled) 1f else 0.4f }
     ) {
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 10.dp),
-            horizontalArrangement = Arrangement.spacedBy(sp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            ControlSlot(cap) { size ->
-                HoldMoveButton(hapticEnabled = hapticEnabled, sensitivity = sensitivity, btnSize = size, icon = Icons.AutoMirrored.Filled.KeyboardArrowLeft, contentDesc = "左移", onMove = onMoveLeft)
-            }
-            ControlSlot(cap) { size ->
-                HoldMoveButton(hapticEnabled = hapticEnabled, sensitivity = sensitivity, btnSize = size, icon = Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDesc = "右移", onMove = onMoveRight)
-            }
-            ControlSlot(cap) { size ->
-                RotateButton(hapticEnabled = hapticEnabled, btnSize = size, onRotate = onRotate)
-            }
-            ControlSlot(cap) { size ->
-                HoldPieceButton(hapticEnabled = hapticEnabled, btnSize = size, enabled = canHold, onHold = onHold)
-            }
-            ControlSlot(cap) { size ->
-                HoldSoftDropButton(hapticEnabled = hapticEnabled, sensitivity = sensitivity, btnSize = size, onSoftDrop = onSoftDrop, onHardDrop = onHardDrop)
+        BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
+            val gap = if (maxWidth < 360.dp) 4.dp else btnSpacing.coerceIn(4, 8).dp
+            val label = if (maxWidth < 360.dp) 10.sp else 11.sp
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 6.dp, vertical = 8.dp),
+                horizontalArrangement = Arrangement.spacedBy(gap),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                ControlSlot {
+                    HoldMoveButton(hapticEnabled = hapticEnabled, sensitivity = sensitivity, height = height, labelSize = label, icon = Icons.AutoMirrored.Filled.KeyboardArrowLeft, label = "左移", onMove = onMoveLeft)
+                }
+                ControlSlot {
+                    HoldMoveButton(hapticEnabled = hapticEnabled, sensitivity = sensitivity, height = height, labelSize = label, icon = Icons.AutoMirrored.Filled.KeyboardArrowRight, label = "右移", onMove = onMoveRight)
+                }
+                ControlSlot {
+                    RotateButton(hapticEnabled = hapticEnabled, height = height, labelSize = label, onRotate = onRotate)
+                }
+                ControlSlot {
+                    HoldPieceButton(hapticEnabled = hapticEnabled, height = height, labelSize = label, enabled = canHold, onHold = onHold)
+                }
+                ControlSlot {
+                    HoldSoftDropButton(hapticEnabled = hapticEnabled, sensitivity = sensitivity, height = height, labelSize = label, onSoftDrop = onSoftDrop, onHardDrop = onHardDrop)
+                }
             }
         }
     }
 }
 
 @Composable
-private fun RowScope.ControlSlot(cap: androidx.compose.ui.unit.Dp, content: @Composable (androidx.compose.ui.unit.Dp) -> Unit) {
-    BoxWithConstraints(modifier = Modifier.weight(1f), contentAlignment = Alignment.Center) {
-        content(minOf(maxWidth, cap))
-    }
+private fun RowScope.ControlSlot(content: @Composable () -> Unit) {
+    Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.Center) { content() }
 }
 
 @Composable
-private fun RotateButton(hapticEnabled: Boolean, btnSize: androidx.compose.ui.unit.Dp = 68.dp, onRotate: () -> Unit) {
+private fun RotateButton(hapticEnabled: Boolean, height: androidx.compose.ui.unit.Dp = 56.dp, labelSize: androidx.compose.ui.unit.TextUnit = 11.sp, onRotate: () -> Unit) {
     val theme = LocalAppTheme.current
     var pressed by remember { mutableStateOf(false) }
     val scale by animateFloatAsState(if (pressed) 0.94f else 1f, label = "rotScale")
@@ -1036,7 +1062,7 @@ private fun RotateButton(hapticEnabled: Boolean, btnSize: androidx.compose.ui.un
         color = if (pressed) theme.controlButtonBgPressed else theme.controlButtonBg,
         border = BorderStroke(1.dp, theme.controlButtonBorder),
         shadowElevation = if (pressed) 2.dp else 6.dp,
-        modifier = Modifier.size(btnSize).graphicsLayer(scaleX = scale, scaleY = scale).clickable {
+        modifier = Modifier.fillMaxWidth().height(height).graphicsLayer(scaleX = scale, scaleY = scale).clickable {
             if (hapticEnabled) haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
             pressed = true
             onRotate()
@@ -1044,8 +1070,8 @@ private fun RotateButton(hapticEnabled: Boolean, btnSize: androidx.compose.ui.un
     ) {
         Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Icon(Icons.Filled.Refresh, contentDescription = "旋转", tint = theme.textPrimary, modifier = Modifier.size(22.dp))
-                Text(text = "旋转", fontSize = 9.sp, color = theme.textPrimary, fontWeight = FontWeight.Bold)
+                Icon(Icons.Filled.Refresh, contentDescription = null, tint = theme.textPrimary, modifier = Modifier.size(18.dp))
+                Text(text = "旋转", fontSize = labelSize, color = theme.textPrimary, fontWeight = FontWeight.Bold, maxLines = 1, softWrap = false)
             }
         }
     }
@@ -1053,7 +1079,7 @@ private fun RotateButton(hapticEnabled: Boolean, btnSize: androidx.compose.ui.un
 }
 
 @Composable
-private fun HoldPieceButton(hapticEnabled: Boolean, btnSize: androidx.compose.ui.unit.Dp = 64.dp, enabled: Boolean = true, onHold: () -> Unit) {
+private fun HoldPieceButton(hapticEnabled: Boolean, height: androidx.compose.ui.unit.Dp = 56.dp, labelSize: androidx.compose.ui.unit.TextUnit = 11.sp, enabled: Boolean = true, onHold: () -> Unit) {
     val theme = LocalAppTheme.current
     var pressed by remember { mutableStateOf(false) }
     val scale by animateFloatAsState(if (pressed) 0.94f else 1f, label = "holdScale")
@@ -1064,7 +1090,8 @@ private fun HoldPieceButton(hapticEnabled: Boolean, btnSize: androidx.compose.ui
         border = BorderStroke(1.dp, theme.controlButtonBorder),
         shadowElevation = if (pressed) 2.dp else 6.dp,
         modifier = Modifier
-            .size(btnSize)
+            .fillMaxWidth()
+            .height(height)
             .graphicsLayer(scaleX = scale, scaleY = scale, alpha = if (enabled) 1f else 0.4f)
             .clickable {
                 if (hapticEnabled) haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
@@ -1074,8 +1101,8 @@ private fun HoldPieceButton(hapticEnabled: Boolean, btnSize: androidx.compose.ui
     ) {
         Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Icon(Icons.Filled.SwapHoriz, contentDescription = "暂存", tint = theme.textPrimary, modifier = Modifier.size(22.dp))
-                Text(text = "暂存", fontSize = 9.sp, color = theme.textPrimary, fontWeight = FontWeight.Bold)
+                Icon(Icons.Filled.SwapHoriz, contentDescription = null, tint = theme.textPrimary, modifier = Modifier.size(18.dp))
+                Text(text = "暂存", fontSize = labelSize, color = theme.textPrimary, fontWeight = FontWeight.Bold, maxLines = 1, softWrap = false)
             }
         }
     }
@@ -1083,7 +1110,7 @@ private fun HoldPieceButton(hapticEnabled: Boolean, btnSize: androidx.compose.ui
 }
 
 @Composable
-private fun HoldMoveButton(hapticEnabled: Boolean, sensitivity: Int = 3, btnSize: androidx.compose.ui.unit.Dp = 68.dp, icon: ImageVector, contentDesc: String, onMove: () -> Unit) {
+private fun HoldMoveButton(hapticEnabled: Boolean, sensitivity: Int = 3, height: androidx.compose.ui.unit.Dp = 56.dp, labelSize: androidx.compose.ui.unit.TextUnit = 11.sp, icon: ImageVector, label: String, onMove: () -> Unit) {
     val theme = LocalAppTheme.current
     val haptic = LocalHapticFeedback.current
     var pressed by remember { mutableStateOf(false) }
@@ -1094,7 +1121,7 @@ private fun HoldMoveButton(hapticEnabled: Boolean, sensitivity: Int = 3, btnSize
         color = if (pressed) theme.controlButtonBgPressed else theme.controlButtonBg,
         border = BorderStroke(1.dp, theme.controlButtonBorder),
         shadowElevation = if (pressed) 2.dp else 8.dp,
-        modifier = Modifier.size(btnSize).graphicsLayer(scaleX = scale, scaleY = scale).pointerInput(Unit) {
+        modifier = Modifier.fillMaxWidth().height(height).graphicsLayer(scaleX = scale, scaleY = scale).pointerInput(Unit) {
             awaitPointerEventScope {
                 while (true) {
                     awaitFirstDown(requireUnconsumed = false)
@@ -1113,13 +1140,16 @@ private fun HoldMoveButton(hapticEnabled: Boolean, sensitivity: Int = 3, btnSize
         }
     ) {
         Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
-            Icon(icon, contentDescription = contentDesc, tint = theme.textPrimary, modifier = Modifier.size(28.dp))
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Icon(icon, contentDescription = null, tint = theme.textPrimary, modifier = Modifier.size(18.dp))
+                Text(text = label, fontSize = labelSize, color = theme.textPrimary, fontWeight = FontWeight.Bold, maxLines = 1, softWrap = false)
+            }
         }
     }
 }
 
 @Composable
-private fun HoldSoftDropButton(hapticEnabled: Boolean, sensitivity: Int = 3, btnSize: androidx.compose.ui.unit.Dp = 68.dp, onSoftDrop: () -> Unit, onHardDrop: () -> Unit) {
+private fun HoldSoftDropButton(hapticEnabled: Boolean, sensitivity: Int = 3, height: androidx.compose.ui.unit.Dp = 56.dp, labelSize: androidx.compose.ui.unit.TextUnit = 11.sp, onSoftDrop: () -> Unit, onHardDrop: () -> Unit) {
     val theme = LocalAppTheme.current
     val haptic = LocalHapticFeedback.current
     var pressed by remember { mutableStateOf(false) }
@@ -1131,7 +1161,7 @@ private fun HoldSoftDropButton(hapticEnabled: Boolean, sensitivity: Int = 3, btn
         color = if (pressed) theme.controlPrimaryBgPressed else theme.controlPrimaryBg,
         border = BorderStroke(1.dp, theme.primaryAccentStrong.copy(alpha = 0.5f)),
         shadowElevation = if (pressed) 2.dp else 8.dp,
-        modifier = Modifier.size(btnSize).graphicsLayer(scaleX = scale, scaleY = scale).pointerInput(Unit) {
+        modifier = Modifier.fillMaxWidth().height(height).graphicsLayer(scaleX = scale, scaleY = scale).pointerInput(Unit) {
             awaitPointerEventScope {
                 while (true) {
                     awaitFirstDown(requireUnconsumed = false)
@@ -1155,8 +1185,8 @@ private fun HoldSoftDropButton(hapticEnabled: Boolean, sensitivity: Int = 3, btn
     ) {
         Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Icon(Icons.Filled.KeyboardArrowDown, contentDescription = "下落", tint = Color.White, modifier = Modifier.size(22.dp))
-                Text(text = "下落", fontSize = 9.sp, color = Color.White.copy(alpha = 0.95f), fontWeight = FontWeight.Bold, letterSpacing = 0.4.sp)
+                Icon(Icons.Filled.KeyboardArrowDown, contentDescription = null, tint = Color.White, modifier = Modifier.size(18.dp))
+                Text(text = "下落", fontSize = labelSize, color = Color.White.copy(alpha = 0.95f), fontWeight = FontWeight.Bold, maxLines = 1, softWrap = false)
             }
         }
     }
